@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Setup - Common Shop</title>
+    <link rel="stylesheet" href="assets/css/style.css">
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        .card {
+            text-align: center;
+            max-width: 400px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="card">
+        <h1>System Setup</h1>
+        <p>Click below to create the Super Admin account.</p>
+        <p><strong>Email:</strong> kyp.nkl@gmail.com</p>
+        <p><strong>Password:</strong> Admin@321</p>
+        <button id="setupBtn" class="btn btn-primary" style="margin-top: 1rem;">Create Super Admin</button>
+        <div id="message" style="margin-top: 1rem;"></div>
+        <a href="index.html" style="display: block; margin-top: 1rem;">Back to Login</a>
+    </div>
+
+    <script type="module">
+        import { auth, db } from './assets/js/firebase-config.js';
+        import { createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+        import { ref, set } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+        document.getElementById('setupBtn').addEventListener('click', async () => {
+            const msg = document.getElementById('message');
+            msg.textContent = "Creating account...";
+            msg.style.color = "blue";
+
+            try {
+                // Create Auth User
+                const userCredential = await createUserWithEmailAndPassword(auth, "kyp.nkl@gmail.com", "Admin@321");
+                const user = userCredential.user;
+
+                // Create User Entry in Realtime Database (USER_DETAILS)
+                await set(ref(db, 'USER_DETAILS/' + user.uid), {
+                    SYS_ID: user.uid,
+                    USER_ID: user.email,
+                    USER_NAME: "Super Admin",
+                    ROLE_SYS_ID: 1, // Super Admin
+                    STATUS_SYS_ID: 1,
+                    CREATED_DATE: new Date().toISOString(),
+                    UPDATED_DATE: new Date().toISOString(),
+                    VERSION_NO: 1
+                });
+
+                msg.textContent = "Super Admin created successfully! You can now login.";
+                msg.style.color = "green";
+            } catch (error) {
+                console.error(error);
+                if (error.code === 'auth/email-already-in-use') {
+                    msg.textContent = "User already exists. Please check Database 'USER_DETAILS' node.";
+                } else {
+                    msg.textContent = "Error: " + error.message;
+                }
+                msg.style.color = "red";
+            }
+        });
+    </script>
+</body>
+
+</html>
