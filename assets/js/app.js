@@ -67,11 +67,11 @@ function handleRoute() {
 }
 
 function renderLogin() {
-    document.title = 'Login - Common Shop';
+    document.title = 'Login - Cart360';
     appDiv.innerHTML = `
         <div class="auth-container">
             <div class="auth-card">
-                <span class="auth-logo">Common Shop</span>
+                <span class="auth-logo">Cart360</span>
                 <p class="auth-subtitle">Sign in to your account</p>
                 
                 <form id="loginForm" class="auth-form">

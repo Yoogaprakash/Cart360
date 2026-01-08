@@ -1,4 +1,5 @@
 import { auth, db } from './firebase-config.js';
+import { logAction } from './logger.js';
 import { signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import { ref, get, child, query, orderByChild, equalTo } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 import { navigateTo } from './app.js';
@@ -32,11 +33,12 @@ async function handleLogin(e) {
         try {
             const userCredential = await signInWithEmailAndPassword(auth, email, password);
             const user = userCredential.user;
-            console.log("Logged in via Firebase Auth:", user.uid);
+            // console.log("Logged in via Firebase Auth:", user.uid);
+            await logAction("LOGIN", "AUTH", user.uid, { METHOD: "FIREBASE_AUTH" });
             await redirectUserBasedOnRole(user);
             return;
         } catch (authError) {
-            console.log("Firebase Auth failed, trying DB Auth...", authError.code);
+            // console.log("Firebase Auth failed, trying DB Auth...", authError.code);
             // If not found or invalid password in Auth, try DB
         }
 
@@ -57,7 +59,8 @@ async function handleLogin(e) {
             });
 
             if (validUser) {
-                console.log("Logged in via DB Auth:", validUser.SYS_ID);
+                // console.log("Logged in via DB Auth:", validUser.SYS_ID);
+                await logAction("LOGIN", "AUTH", validUser.SYS_ID, { METHOD: "DB_AUTH", COMPANY_SYS_ID: validUser.COMPANY_SYS_ID });
                 // Create a local session
                 const sessionUser = {
                     uid: validUser.SYS_ID,
@@ -97,7 +100,7 @@ export async function redirectUserBasedOnRole(user) {
 
     if (snapshot.exists()) {
         const userData = snapshot.val();
-        console.log("User Role:", userData.ROLE_SYS_ID);
+        // console.log("User Role:", userData.ROLE_SYS_ID);
 
         if (userData.ROLE_SYS_ID == 2) {
             navigateTo('/admin');

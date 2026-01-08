@@ -152,7 +152,7 @@
 .btn-remove {
     background: none;
     border: none;
-    color: var(--danger-color);
+    /* color: var(--danger-color); */
     font-size: 1.25rem;
     cursor: pointer;
     padding: 0 0.25rem;

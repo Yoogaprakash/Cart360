@@ -2,7 +2,15 @@ import { db, auth } from './firebase-config.js';
 import { ref, push, set } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
 export async function logAction(actionName, tableName, recordSysId, details = {}) {
-    if (!auth.currentUser) return;
+    let currentUser = auth.currentUser;
+    if (!currentUser) {
+        const localSession = localStorage.getItem('userSession');
+        if (localSession) {
+            currentUser = JSON.parse(localSession);
+        }
+    }
+
+    if (!currentUser) return;
 
     try {
         // We need company_sys_id. We can try to get it from details or fetch it, 
@@ -13,7 +21,7 @@ export async function logAction(actionName, tableName, recordSysId, details = {}
             ACTION_NAME: actionName,
             TABLE_NAME: tableName,
             RECORD_SYS_ID: recordSysId,
-            USER_SYS_ID: auth.currentUser.uid,
+            USER_SYS_ID: currentUser.uid || currentUser.sys_id || 'UNKNOWN',
             TIMESTAMP: new Date().toISOString(),
             DETAILS: details
         };

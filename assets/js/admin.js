@@ -1,5 +1,5 @@
 import { db, auth, storage } from './firebase-config.js';
-import { ref, push, set, get, child, update } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+import { ref, push, set, get, child, update, query, orderByChild, equalTo } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 import { ref as sRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
 import { logout } from './auth.js';
 import { logAction } from './logger.js';
@@ -9,6 +9,87 @@ let currentUserRole = null;
 let cart = [];
 let posProducts = [];
 let companyData = {};
+
+// View State for Pagination & Search
+const viewState = {
+    bills: { data: [], filtered: [], page: 1, limit: 10, search: '' },
+    products: { data: [], filtered: [], page: 1, limit: 10, search: '' },
+    categories: { data: [], filtered: [], page: 1, limit: 10, search: '' }
+};
+
+// Pagination Helpers
+function getPaginatedData(key) {
+    const state = viewState[key];
+    const start = (state.page - 1) * state.limit;
+    return state.filtered.slice(start, start + state.limit);
+}
+
+function updatePaginationState(key, newPage = null, newLimit = null) {
+    if (newPage) viewState[key].page = newPage;
+    if (newLimit) {
+        viewState[key].limit = parseInt(newLimit);
+        viewState[key].page = 1; // Reset to page 1 on limit change
+    }
+}
+
+function renderPaginationControls(key, containerId) {
+    const state = viewState[key];
+    const total = state.filtered.length;
+    const totalPages = Math.ceil(total / state.limit);
+    // ensure current page isn't out of bounds
+    if (state.page > totalPages && totalPages > 0) state.page = totalPages;
+    if (state.page < 1) state.page = 1;
+
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    let html = `
+        <div class="pagination-controls" style="display:flex; justify-content:space-between; align-items:center; margin-top:10px;">
+            <div style="display:flex; align-items:center; gap:10px;">
+                <label>Show</label>
+                <select id="limit-${key}" class="form-input" style="width:70px; padding:2px;">
+                    <option value="5" ${state.limit == 5 ? 'selected' : ''}>5</option>
+                    <option value="10" ${state.limit == 10 ? 'selected' : ''}>10</option>
+                    <option value="50" ${state.limit == 50 ? 'selected' : ''}>50</option>
+                    <option value="100" ${state.limit == 100 ? 'selected' : ''}>100</option>
+                    <option value="500" ${state.limit == 500 ? 'selected' : ''}>500</option>
+                    <option value="1000" ${state.limit == 1000 ? 'selected' : ''}>1000</option>
+                </select>
+                <span>entries</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:5px;">
+                <span>Page ${state.page} of ${totalPages || 1} (${total} items)</span>
+                <button class="btn btn-sm ${state.page <= 1 ? 'disabled' : ''}" id="prev-${key}" ${state.page <= 1 ? 'disabled' : ''}>Prev</button>
+                <button class="btn btn-sm ${state.page >= totalPages ? 'disabled' : ''}" id="next-${key}" ${state.page >= totalPages ? 'disabled' : ''}>Next</button>
+            </div>
+        </div>
+    `;
+    container.innerHTML = html;
+
+    // Listeners
+    container.querySelector(`#limit-${key}`).addEventListener('change', (e) => {
+        updatePaginationState(key, null, e.target.value);
+        refreshView(key);
+    });
+    container.querySelector(`#prev-${key}`).addEventListener('click', () => {
+        if (state.page > 1) {
+            updatePaginationState(key, state.page - 1);
+            refreshView(key);
+        }
+    });
+    container.querySelector(`#next-${key}`).addEventListener('click', () => {
+        if (state.page < totalPages) {
+            updatePaginationState(key, state.page + 1);
+            refreshView(key);
+        }
+    });
+}
+
+function refreshView(key) {
+    if (key === 'bills') updateBillsTable();
+    else if (key === 'products') updateProductsTable();
+    else if (key === 'categories') updateCategoriesTable();
+}
 
 export async function initAdmin() {
     const appDiv = document.getElementById('app');
@@ -31,6 +112,7 @@ export async function initAdmin() {
         currentUserRole = userData.ROLE_SYS_ID; // 2: Admin, 3: Employee
     } else {
         alert("Error: User details not found.");
+        showCustomAlert("Error: User details not found.");
         return;
     }
 
@@ -44,24 +126,27 @@ export async function initAdmin() {
     let menuItems = '';
     if (currentUserRole == 2) { // Admin
         menuItems = `
-            <button class="nav-item active" data-view="company" data-icon="🏢"><span>Company</span></button>
-            <button class="nav-item" data-view="categories" data-icon="📂"><span>Categories</span></button>
-            <button class="nav-item" data-view="products" data-icon="📦"><span>Products</span></button>
-            <button class="nav-item" data-view="bills" data-icon="📄"><span>Bills</span></button>
-            <button class="nav-item" data-view="pos" data-icon="🛍️"><span>POS</span></button>
-            <button class="nav-item" data-view="cart" data-icon="🛒">
+            <button class="nav-item active" data-view="company" data-icon="🏢" data-tooltip="Company Details"><span>Company</span></button>
+            <button class="nav-item" data-view="users" data-icon="👥" data-tooltip="Users" style="display:none;"><span>Users</span></button>
+            <button class="nav-item" data-view="categories" data-icon="📂" data-tooltip="Categories"><span>Categories</span></button>
+            <button class="nav-item" data-view="products" data-icon="📦" data-tooltip="Products"><span>Products</span></button>
+            <button class="nav-item" data-view="bills" data-icon="📄" data-tooltip="Bills"><span>Bills</span></button>
+            <button class="nav-item" data-view="reports" data-icon="📈" data-tooltip="Reports"><span>Reports</span></button>
+            <button class="nav-item" data-view="pos" data-icon="🛍️" data-tooltip="Store"><span>Store</span></button>
+            <button class="nav-item" data-view="cart" data-icon="🛒" data-tooltip="Cart">
                 <span>Cart</span>
                 <span id="cartCountBadge" class="badge" style="display:none;">0</span>
             </button>
         `;
     } else if (currentUserRole == 3) { // Employee
         menuItems = `
-            <button class="nav-item active" data-view="pos" data-icon="🛍️"><span>POS</span></button>
-            <button class="nav-item" data-view="cart" data-icon="🛒">
+            <button class="nav-item active" data-view="pos" data-icon="🛍️" data-tooltip="Store"><span>Store</span></button>
+            <button class="nav-item" data-view="cart" data-icon="🛒" data-tooltip="Cart">
                 <span>Cart</span>
                 <span id="cartCountBadge_emp" class="badge" style="display:none;">0</span>
             </button>
-            <button class="nav-item" data-view="bills" data-icon="📄"><span>Bills</span></button>
+            <button class="nav-item" data-view="bills" data-icon="📄" data-tooltip="Bills"><span>Bills</span></button>
+            <button class="nav-item" data-view="reports" data-icon="📈" data-tooltip="Reports"><span>Reports</span></button>
         `;
     }
 
@@ -86,17 +171,32 @@ export async function initAdmin() {
                         <span class="text-content">Logout</span>
                     </button>
                 </div>
+
             </aside>
             
             <main class="main-content">
                 <div id="viewContainer">
                     <!-- Dynamic Content -->
                 </div>
+                <div class="footer-credit">Developed by YOG SOFTWARES</div>
             </main>
 
             <!-- Shared Modal Container -->
             <div id="sharedModal" class="modal hidden">
                 <div class="modal-content" id="modalContent"></div>
+            </div>
+            
+             <!-- Custom Alert Modal -->
+            <div id="customAlert" class="custom-alert-overlay">
+                <div class="custom-alert-box">
+                    <h3 id="customAlertTitle">Alert</h3>
+                    <p id="customAlertMessage" class="custom-alert-message"></p>
+                    <input type="password" id="customAlertInput" class="custom-alert-pass-input" placeholder="Enter Password">
+                    <div style="display:flex; justify-content:flex-end; gap: 10px;">
+                        <button id="customAlertCancelBtn" class="custom-alert-btn" style="background:#9ca3af; display:none;">Cancel</button>
+                        <button id="customAlertBtn" class="custom-alert-btn">OK</button>
+                    </div>
+                </div>
             </div>
         </div>
     `;
@@ -104,10 +204,14 @@ export async function initAdmin() {
     // Event Listeners
     document.getElementById('logoutBtn').addEventListener('click', logout);
     document.getElementById('sidebarToggle').addEventListener('click', () => {
-        document.getElementById('sidebar').classList.toggle('collapsed');
+        const sidebar = document.getElementById('sidebar');
+        sidebar.classList.toggle('collapsed');
+        document.body.classList.toggle('sidebar-is-collapsed', sidebar.classList.contains('collapsed'));
     });
     document.getElementById('sidebarLogo').addEventListener('click', () => {
-        document.getElementById('sidebar').classList.toggle('collapsed');
+        const sidebar = document.getElementById('sidebar');
+        sidebar.classList.toggle('collapsed');
+        document.body.classList.toggle('sidebar-is-collapsed', sidebar.classList.contains('collapsed'));
     });
 
     document.querySelectorAll('.nav-item[data-view]').forEach(btn => {
@@ -115,21 +219,33 @@ export async function initAdmin() {
             const target = e.currentTarget; // Use currentTarget to get the button, not the span
             document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
             target.classList.add('active');
+            localStorage.setItem('lastView', target.dataset.view); // Save view
             renderView(target.dataset.view);
         });
     });
 
     // Initial View
-    const initialView = currentUserRole == 2 ? 'company' : 'pos';
-    if (initialView !== 'company') {
+    // Check localStorage first, otherwise default to 'pos'
+    const savedView = localStorage.getItem('lastView');
+    const initialView = savedView ? savedView : 'pos';
+
+    if (initialView) {
         document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
         const activeBtn = document.querySelector(`.nav-item[data-view="${initialView}"]`);
-        if (activeBtn) activeBtn.classList.add('active');
+        // If saved view button exists (e.g. role still allows it), click it or set active
+        if (activeBtn) {
+            activeBtn.classList.add('active');
+            renderView(initialView);
+        } else {
+            // Fallback if saved view is not accessible (e.g. permission change)
+            renderView('pos');
+        }
     }
 
     // Auto-collapse on mobile
     if (window.innerWidth <= 768) {
         document.getElementById('sidebar').classList.add('collapsed');
+        document.body.classList.add('sidebar-is-collapsed');
     }
 
     renderView(initialView);
@@ -146,6 +262,10 @@ function renderView(viewName) {
         case 'bills': renderBillsView(container); break;
         case 'pos': renderPosView(container); break;
         case 'cart': renderCartView(container); break;
+        case 'reports': renderReportsView(container); break;
+        case 'cart': renderCartView(container); break;
+        case 'reports': renderReportsView(container); break;
+        case 'users': renderUsersView(container); break;
     }
 }
 
@@ -170,11 +290,14 @@ async function renderCompanyView(container) {
             container.innerHTML = `
                 <div class="section-header">
                     <h2>Company Details</h2>
-                    <button id="editCompanyBtn" class="btn btn-primary">Edit Details</button>
+                    <div>
+                        <button id="editCompanyBtn" class="btn btn-primary">Edit Details</button>
+                        <button id="inactiveAllSalesBtn" class="btn" style="background:#ef4444; color:white; margin-left: 10px;">Delete All Bills</button>
+                    </div>
                 </div>
                 <div class="card">
-                    <div style="display:flex; gap:2rem; align-items:start;">
-                        <div style="text-align:center;">
+                    <div class="company-layout">
+                        <div class="company-logo-section">
                             <img src="${logoUrl}" alt="Company Logo" style="width:100px; height:100px; object-fit:cover; border-radius:12px; border:1px solid #e2e8f0;">
                             <p style="margin-top:0.5rem; color:#6b7280; font-size:0.8rem;">Logo</p>
                         </div>
@@ -193,6 +316,18 @@ async function renderCompanyView(container) {
                 </div>
             `;
             document.getElementById('editCompanyBtn').addEventListener('click', () => openCompanyModal());
+            document.getElementById('inactiveAllSalesBtn').addEventListener('click', async () => {
+                const pw = await showCustomAlert("Enter Admin Password to confirm:", "Admin Access", "password");
+                if (pw !== "Delete@0000") {
+                    showCustomAlert("Incorrect Password", "Access Denied");
+                    return;
+                }
+
+                const confirmAction = await showCustomAlert("Are you sure? This will mark ALL sales bills as Inactive.", "Confirm Action", "confirm");
+                if (!confirmAction) return;
+
+                handleDeleteSales();
+            });
         } else {
             container.innerHTML = '<p>Company details not found.</p>';
         }
@@ -341,13 +476,20 @@ async function handleCompanySubmit(e) {
 // BILLS VIEW
 // ==========================================
 async function renderBillsView(container) {
+    viewState.bills.search = ''; // Reset search
     container.innerHTML = `
-        <div class="section-header"><h2>Bills History</h2></div>
+        <div class="section-header">
+            <h2>Bills History</h2>
+            <div style="display: flex; gap: 10px;">
+                <input type="text" id="billSearch" class="form-input" placeholder="Search by Bill No, Name, Phone..." style="width: 300px;">
+            </div>
+        </div>
         <div class="table-container">
             <table class="data-table">
                 <thead>
                     <tr>
                         <th>Date</th>
+                        <th>Bill No</th>
                         <th>Customer</th>
                         <th>Mobile</th>
                         <th>Amount</th>
@@ -355,58 +497,90 @@ async function renderBillsView(container) {
                         <th>Actions</th>
                     </tr>
                 </thead>
-                <tbody id="billsTableBody"><tr><td colspan="6">Loading...</td></tr></tbody>
+                <tbody id="billsTableBody"><tr><td colspan="7">Loading...</td></tr></tbody>
             </table>
         </div>
+        <div id="billsPagination"></div>
     `;
+
+    document.getElementById('billSearch').addEventListener('input', (e) => {
+        viewState.bills.search = e.target.value.toLowerCase();
+        viewState.bills.page = 1;
+        applyBillFilters();
+    });
 
     try {
         const snapshot = await get(child(ref(db), `BILL_DETAILS/${currentCompanyId}`));
-        const tbody = document.getElementById('billsTableBody');
-        tbody.innerHTML = '';
 
         if (!snapshot.exists()) {
-            tbody.innerHTML = '<tr><td colspan="6">No bills found.</td></tr>';
+            document.getElementById('billsTableBody').innerHTML = '<tr><td colspan="7">No bills found.</td></tr>';
+            viewState.bills.data = [];
+            viewState.bills.filtered = [];
             return;
         }
 
         const bills = [];
         snapshot.forEach(child => {
-            bills.push({ id: child.key, ...child.val() });
+            const val = child.val();
+            if (val.STATUS_SYS_ID != 0) { // Only active
+                bills.push({ id: child.key, ...val });
+            }
         });
-
-        if (bills.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="6">No bills found for this company.</td></tr>';
-            return;
-        }
 
         // Sort by date desc
         bills.sort((a, b) => new Date(b.CREATED_DATE) - new Date(a.CREATED_DATE));
 
-        bills.forEach(bill => {
+        viewState.bills.data = bills;
+        applyBillFilters(); // This triggers updateBillsTable
+
+    } catch (error) {
+        console.error(error);
+        container.innerHTML = '<p>Error loading bills.</p>';
+    }
+}
+
+function applyBillFilters() {
+    const q = viewState.bills.search;
+    viewState.bills.filtered = viewState.bills.data.filter(b => {
+        if (!q) return true;
+        return (b.BILL_NO || '').toLowerCase().includes(q) ||
+            (b.CUSTOMER_NAME || '').toLowerCase().includes(q) ||
+            (b.CUSTOMER_PHONE || '').toLowerCase().includes(q) ||
+            new Date(b.CREATED_DATE).toLocaleDateString().includes(q);
+    });
+    updateBillsTable();
+}
+
+function updateBillsTable() {
+    const tbody = document.getElementById('billsTableBody');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+
+    const records = getPaginatedData('bills');
+
+    if (records.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7">No bills matches found.</td></tr>';
+    } else {
+        records.forEach(bill => {
             const row = document.createElement('tr');
             row.innerHTML = `
                 <td>${new Date(bill.CREATED_DATE).toLocaleDateString()}</td>
+                <td>${bill.BILL_NO}</td>
                 <td>${bill.CUSTOMER_NAME || 'Walk-in'}</td>
-                <td>${bill.CUSTOMER_MOBILE || '-'}</td>
-                <td>₹${bill.TOTAL_AMOUNT}</td>
+                <td>${bill.CUSTOMER_PHONE || '-'}</td>
+                <td>₹${bill.TOTAL_AMOUNT.toFixed(2)}</td>
                 <td>${bill.ITEMS ? bill.ITEMS.length : 0}</td>
                 <td>
                     <button class="btn-icon view-btn" title="View PDF">👁️</button>
                     <button class="btn-icon download-btn" title="Download PDF">⬇️</button>
                 </td>
             `;
-
             row.querySelector('.view-btn').addEventListener('click', () => viewBillPdf(bill));
             row.querySelector('.download-btn').addEventListener('click', () => downloadBillPdf(bill, bill.id));
-
             tbody.appendChild(row);
         });
-
-    } catch (error) {
-        console.error(error);
-        container.innerHTML = '<p>Error loading bills.</p>';
     }
+    renderPaginationControls('bills', 'billsPagination');
 }
 
 // ==========================================
@@ -631,26 +805,64 @@ async function viewBillPdf(billData) {
 }
 
 // ==========================================
-// CATEGORIES VIEW
+// CATEGORY VIEW & LOGIC
 // ==========================================
+
 function renderCategoriesView(container) {
     if (currentUserRole != 2) {
         container.innerHTML = '<p>Access Denied</p>';
         return;
     }
+    viewState.categories.search = '';
     container.innerHTML = `
         <div class="section-header">
             <h2>Categories</h2>
-            <button id="addCategoryBtn" class="btn btn-primary">Add Category</button>
+            <div style="display:flex; gap: 10px;">
+                <button id="addCategoryBtn" class="btn btn-primary" title="Add Category"><span style="font-size:1.1rem; vertical-align:middle;">&#43;</span></button>
+                <button id="inactiveSelCatBtn" class="btn" style="background:#ef4444; color:white;" title="Delete Selected"><span style="font-size:1.1rem; vertical-align:middle;">&#10005;</span></button>
+            </div>
+        </div>
+        <div style="margin-bottom: 1rem;">
+            <input type="text" id="catSearch" class="form-input" placeholder="Search Categories..." style="width: 100%; max-width: 300px;">
         </div>
         <div class="table-container">
             <table class="data-table">
-                <thead><tr><th>Name</th><th>Status</th><th>Actions</th></tr></thead>
-                <tbody id="categoriesTableBody"><tr><td colspan="3">Loading...</td></tr></tbody>
+                <thead>
+                    <tr>
+                        <th style="width: 40px;"><input type="checkbox" id="catSelectAll"></th>
+                        <th>Name</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="categoriesTableBody"><tr><td colspan="4">Loading...</td></tr></tbody>
             </table>
         </div>
+        <div id="categoriesPagination"></div>
     `;
+
     document.getElementById('addCategoryBtn').addEventListener('click', () => openCategoryModal());
+    document.getElementById('catSearch').addEventListener('input', (e) => {
+        viewState.categories.search = e.target.value.toLowerCase();
+        viewState.categories.page = 1;
+        applyCategoryFilters();
+    });
+
+    document.getElementById('catSelectAll').addEventListener('change', (e) => {
+        document.querySelectorAll('.cat-chk').forEach(chk => chk.checked = e.target.checked);
+    });
+
+    document.getElementById('inactiveSelCatBtn').addEventListener('click', async () => {
+        const selected = Array.from(document.querySelectorAll('.cat-chk:checked')).map(cb => cb.dataset.id);
+        if (selected.length === 0) return showCustomAlert("No items selected", "Info");
+
+        if (!await showCustomAlert(`Mark ${selected.length} categories as deleted?`, "Confirm Action", "confirm")) return;
+
+        await updateStatusBulk('CATEGORY_DETAILS', selected, 2); // 2 = Inactive
+        showCustomAlert(`${selected.length} categories marked as deleted.`, "Success");
+        loadCategories();
+    });
+
     loadCategories();
 }
 
@@ -662,20 +874,86 @@ function renderProductsView(container) {
         container.innerHTML = '<p>Access Denied</p>';
         return;
     }
+    viewState.products.search = '';
     container.innerHTML = `
         <div class="section-header">
             <h2>Products</h2>
-            <button id="addProductBtn" class="btn btn-primary">Add Product</button>
+             <div style="display:flex; gap: 10px;">
+                <button id="addProductBtn" class="btn btn-primary" title="Add Product"><span style="font-size:1.1rem; vertical-align:middle;">&#43;</span></button>
+                 <button id="inactiveSelProdBtn" class="btn" style="background:#ef4444; color:white;" title="Delete Selected"><span style="font-size:1.1rem; vertical-align:middle;">&#10005;</span></button>
+            </div>
+        </div>
+        <div style="margin-bottom: 1rem;">
+            <input type="text" id="prodSearch" class="form-input" placeholder="Search Products..." style="width: 100%; max-width: 300px;">
         </div>
         <div class="table-container">
             <table class="data-table">
-                <thead><tr><th>Image</th><th>Name</th><th>Brand</th><th>Category</th><th>Price</th><th>Stock</th><th>Status</th><th>Actions</th></tr></thead>
-                <tbody id="productsTableBody"><tr><td colspan="8">Loading...</td></tr></tbody>
+                <thead>
+                    <tr>
+                         <th style="width: 40px;"><input type="checkbox" id="prodSelectAll"></th>
+                        <th>Image</th>
+                        <th>Name</th>
+                        <th>Brand</th>
+                        <th>Category</th>
+                        <th>Price</th>
+                        <th>Stock</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="productsTableBody"><tr><td colspan="9">Loading...</td></tr></tbody>
             </table>
         </div>
+        <div id="productsPagination"></div>
     `;
+
     document.getElementById('addProductBtn').addEventListener('click', () => openProductModal());
+    document.getElementById('prodSearch').addEventListener('input', (e) => {
+        viewState.products.search = e.target.value.toLowerCase();
+        viewState.products.page = 1;
+        applyProductFilters();
+    });
+
+    document.getElementById('prodSelectAll').addEventListener('change', (e) => {
+        document.querySelectorAll('.prod-chk').forEach(chk => chk.checked = e.target.checked);
+    });
+
+    document.getElementById('inactiveSelProdBtn').addEventListener('click', async () => {
+        const selected = Array.from(document.querySelectorAll('.prod-chk:checked')).map(cb => cb.dataset.id);
+        if (selected.length === 0) return showCustomAlert("No items selected", "Info");
+
+        if (!await showCustomAlert(`Mark ${selected.length} products as deleted?`, "Confirm Action", "confirm")) return;
+
+        await updateStatusBulk('PRODUCT_DETAILS', selected, 2); // 2 = Inactive
+        showCustomAlert(`${selected.length} products marked as deleted.`, "Success");
+        loadProducts();
+    });
+
     loadProducts();
+}
+
+// Helper for client-side search
+function filterTable(tbodyId, query) {
+    const rows = document.querySelectorAll(`#${tbodyId} tr`);
+    const q = query.toLowerCase();
+    rows.forEach(row => {
+        const text = row.innerText.toLowerCase();
+        row.style.display = text.includes(q) ? '' : 'none';
+    });
+}
+
+// Bulk Update Helper
+async function updateStatusBulk(node, ids, status) {
+    const updates = {};
+    ids.forEach(id => {
+        updates[`${node}/${currentCompanyId}/${id}/STATUS_SYS_ID`] = status;
+    });
+    await update(ref(db), updates);
+
+    // Log actions
+    ids.forEach(id => {
+        logAction(status == 2 ? "SOFT_DELETE" : "UPDATE_STATUS", node, id, { STATUS: status, COMPANY_SYS_ID: currentCompanyId });
+    });
 }
 
 // ==========================================
@@ -707,10 +985,10 @@ function renderCartView(container) {
             </div>
             
             <div class="cart-footer" style="margin-top: 2rem; border-top: 1px solid var(--border-color); padding-top: 1rem;">
-                <div class="customer-details" style="margin-bottom: 1rem; display: grid; gap: 1rem; grid-template-columns: 1fr 1fr;">
+                <div class="cart-customer-grid customer-details">
                     <input type="text" id="custName" class="form-input" placeholder="Customer Name">
                     <input type="tel" id="custPhone" class="form-input" placeholder="Phone Number">
-                    <textarea id="custAddress" class="form-input" placeholder="Address" style="grid-column: span 2; resize: vertical; min-height: 60px;"></textarea>
+                    <textarea id="custAddress" class="form-input cart-address-input" placeholder="Address"></textarea>
                 </div>
                 <div class="total-section" style="margin-bottom: 1rem;">
                     <div class="summary-row" style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
@@ -727,7 +1005,7 @@ function renderCartView(container) {
                     </div>
                 </div>
                 <div style="display: flex; gap: 1rem;">
-                     <button class="btn" onclick="renderView('pos')">Back to POS</button>
+                     <button id="previewBillBtn" class="btn btn-primary" style="background: #3b82f6; flex: 1;">Preview Bill</button>
                      <button id="printBtn" class="btn btn-primary" style="flex: 1;" disabled>Generate Bill & Print</button>
                 </div>
             </div>
@@ -735,6 +1013,7 @@ function renderCartView(container) {
     `;
 
     document.getElementById('printBtn').addEventListener('click', generateBill);
+    document.getElementById('previewBillBtn').addEventListener('click', previewBill);
     updateCartUI();
 }
 
@@ -927,7 +1206,44 @@ async function renderPosView(container) {
             .form-input { border: 1px solid #cbd5e1; border-radius: 8px; padding: 0.6rem 1rem; outline: none; transition: border-color 0.2s; width: 100%; font-size: 0.9rem; }
             .form-input:focus { border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1); }
             
-            @media (max-width: 1024px) { .billing-container { flex-direction: column; height: auto; } .products-panel { height: auto; min-height: 500px; } .cart-panel { min-width: auto; } }
+            /* Tablet/Desktop adjustments */
+            @media (max-width: 1024px) { 
+                .billing-container { flex-direction: column; height: auto; } 
+                .products-panel { height: auto; min-height: 500px; padding-right: 0; } 
+                .cart-panel { min-width: auto; } 
+            }
+
+            /* Mobile: Dynamic Columns based on Sidebar */
+            @media (max-width: 768px) {
+                /* Default (Sidebar Expanded): 1 Column */
+                .products-grid { grid-template-columns: minmax(0, 1fr); gap: 0.5rem; }
+                
+                /* Sidebar Collapsed: 2 Columns */
+                body.sidebar-is-collapsed .products-grid { grid-template-columns: repeat(2, 1fr); }
+
+                .product-card { border-radius: 8px; width: 100%; max-width: 100%; }
+                .card-image-wrapper { height: 100px; }
+                .card-content { padding: 0.5rem; }
+                .product-card h3 { font-size: 0.85rem; margin-bottom: 0.1rem; }
+                .product-brand { font-size: 0.65rem; margin-bottom: 0.25rem; }
+                .price { font-size: 0.95rem; }
+                .stock { font-size: 0.65rem; padding: 0.1rem 0.3rem; }
+                .add-to-cart-btn { padding: 0.4rem; font-size: 0.8rem; }
+                .filter-bar { flex-direction: row; flex-wrap: nowrap; gap: 0.25rem; overflow-x: auto; padding-bottom: 5px; }
+                .filter-bar > * { flex: 0 0 auto; width: 32%; min-width: 80px; }
+                .form-input { padding: 0.5rem; font-size: 0.8rem; }
+            }
+                .product-card { border-radius: 8px; }
+                .card-image-wrapper { height: 100px; }
+                .card-content { padding: 0.5rem; }
+                .product-card h3 { font-size: 0.85rem; margin-bottom: 0.1rem; }
+                .product-brand { font-size: 0.65rem; margin-bottom: 0.25rem; }
+                .price { font-size: 0.95rem; }
+                .stock { font-size: 0.65rem; padding: 0.1rem 0.3rem; }
+                .filter-bar { flex-direction: row; flex-wrap: nowrap; gap: 0.25rem; overflow-x: auto; padding-bottom: 5px; }
+                .filter-bar > * { flex: 0 0 auto; width: 32%; min-width: 80px; }
+                .form-input { padding: 0.5rem; font-size: 0.8rem; }
+            }
         `;
         document.head.appendChild(style);
     }
@@ -1007,19 +1323,34 @@ async function renderPosView(container) {
 
 // --- POS Logic ---
 
-async function loadProductsForPos() {
-    try {
-        const dbRef = ref(db);
-        const snapshot = await get(child(dbRef, `PRODUCT_DETAILS/${currentCompanyId}`));
+async function loadProductsForPos(categoryId = 'all') {
+    if (!currentCompanyId) return;
+    const grid = document.getElementById('productsGrid'); // Correct ID
+    if (grid) grid.innerHTML = '<p class="loading">Loading products...</p>';
 
-        posProducts = [];
+    try {
+        const prodRef = child(ref(db), `PRODUCT_DETAILS/${currentCompanyId}`);
+        const snapshot = await get(prodRef);
+
+        // Fetch Categories to check status
+        const catRef = child(ref(db), `CATEGORY_DETAILS/${currentCompanyId}`);
+        const catSnap = await get(catRef);
+        const categories = catSnap.exists() ? catSnap.val() : {};
+
+        posProducts = []; // Reset global cache
 
         if (snapshot.exists()) {
-            const allProducts = snapshot.val();
-            Object.keys(allProducts).forEach(key => {
-                const prod = allProducts[key];
-                if (prod.STATUS_SYS_ID == 1) { // Active only
-                    posProducts.push({ id: key, ...prod });
+            const products = snapshot.val();
+
+            Object.keys(products).forEach(key => {
+                const p = products[key];
+                // Check Product Active AND Category Active (Status == 1)
+                const cat = categories[p.CATEGORY_SYS_ID];
+                const isCatActive = cat && cat.STATUS_SYS_ID == 1;
+                const isProdActive = p.STATUS_SYS_ID == 1;
+
+                if (isProdActive && isCatActive) {
+                    posProducts.push({ id: key, ...p });
                 }
             });
         }
@@ -1027,8 +1358,8 @@ async function loadProductsForPos() {
         renderPosProducts(posProducts);
 
     } catch (error) {
-        console.error("Error loading products:", error);
-        document.getElementById('productsGrid').innerHTML = '<div class="error">Error loading products</div>';
+        console.error("Error loading POS products:", error);
+        if (grid) grid.innerHTML = '<p class="error">Error loading products.</p>';
     }
 }
 
@@ -1283,10 +1614,12 @@ async function generateBill() {
     const custPhone = document.getElementById('custPhone').value;
     const custAddress = document.getElementById('custAddress').value;
 
+
     if (!custName) {
-        alert("Please enter customer name");
+        await showCustomAlert("Please enter customer name", "Missing Details");
         return;
     }
+
 
     const subTotal = cart.reduce((sum, item) => sum + (item.PRICE * item.qty), 0);
     const gstEnabled = companyData.GST_FLAG == 1;
@@ -1339,16 +1672,14 @@ function showQrModal(billData) {
     const content = document.getElementById('modalContent');
     modal.classList.remove('hidden');
 
-    const qrData = `upi://pay?pa=${companyData.UPI_ID}&pn=${encodeURIComponent(companyData.COMPANY_NAME)}&am=${billData.TOTAL_AMOUNT.toFixed(2)}&cu=INR`;
-    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(qrData)}`;
+    // Use pn=BILL as requested
+    const qrData = `upi://pay?pa=${companyData.UPI_ID}&pn=BILL&am=${billData.TOTAL_AMOUNT.toFixed(2)}&cu=INR`;
 
     content.innerHTML = `
         <div style="text-align: center; padding: 1rem;">
             <h2>Scan to Pay</h2>
             <p style="margin-bottom: 1rem; color: #666;">Total Amount: <strong style="font-size: 1.2rem; color: #000;">₹${billData.TOTAL_AMOUNT.toFixed(2)}</strong></p>
-            <div style="background: white; padding: 1rem; display: inline-block; border-radius: 8px; border: 1px solid #eee; margin-bottom: 1.5rem;">
-                <img src="${qrUrl}" alt="Payment QR Code" style="width: 250px; height: 250px;">
-            </div>
+            <div id="qrCodeContainer" style="background: white; padding: 1rem; display: inline-block; border-radius: 8px; border: 1px solid #eee; margin-bottom: 1.5rem;"></div>
             <p style="margin-bottom: 1.5rem; font-size: 0.9rem;">UPI ID: ${companyData.UPI_ID}</p>
             <div class="modal-actions" style="justify-content: center; gap: 1rem;">
                 <button id="cancelBillBtn" class="btn">Cancel</button>
@@ -1356,6 +1687,19 @@ function showQrModal(billData) {
             </div>
         </div>
     `;
+
+    // Generate QR Code locally
+    setTimeout(() => {
+        const container = document.getElementById("qrCodeContainer");
+        if (container) {
+            container.innerHTML = ''; // Clear previous
+            new QRCode(container, {
+                text: qrData,
+                width: 200,
+                height: 200
+            });
+        }
+    }, 100);
 
     document.getElementById('cancelBillBtn').addEventListener('click', () => modal.classList.add('hidden'));
     document.getElementById('confirmPrintBtn').addEventListener('click', () => {
@@ -1416,11 +1760,476 @@ async function saveAndPrintBill(billData) {
 
     } catch (error) {
         console.error("Error generating bill:", error);
-        alert("Error generating bill");
+        await showCustomAlert("Error generating bill", "Error");
     }
 }
 
 
+async function previewBill() {
+    const custName = document.getElementById('custName').value;
+    const custPhone = document.getElementById('custPhone').value;
+    const custAddress = document.getElementById('custAddress').value;
+
+    if (!custName) {
+        await showCustomAlert("Please enter customer name to preview bill", "Missing Details");
+        return;
+    }
+
+    if (cart.length === 0) {
+        await showCustomAlert("Cart is empty", "Cart Empty");
+        return;
+    }
+
+    // Logic similar to generateBill to construct billData
+    const subTotal = cart.reduce((sum, item) => sum + (item.PRICE * item.qty), 0);
+    const gstEnabled = companyData.GST_FLAG == 1;
+    let totalGst = 0;
+
+    const items = cart.map(i => {
+        const itemTotal = i.PRICE * i.qty;
+        const gstPercent = parseFloat(i.GST_PERCENTAGE) || 0;
+        const itemGst = gstEnabled ? ((itemTotal * gstPercent) / 100) : 0;
+        totalGst += itemGst;
+        return {
+            PRODUCT_ID: i.id,
+            NAME: i.PRODUCT_NAME,
+            BRAND: i.BRAND || '',
+            HSN_CODE: i.HSN_CODE || '-',
+            QTY: i.qty,
+            PRICE: i.PRICE,
+            GST_PERCENTAGE: gstEnabled ? gstPercent : 0,
+            GST_AMOUNT: itemGst,
+            TOTAL: itemTotal
+        };
+    });
+
+    const grandTotal = subTotal + totalGst;
+    const now = new Date();
+    // Temporary Bill No for Preview
+    const billNo = "DRAFT-PREVIEW";
+
+    const billData = {
+        BILL_NO: billNo,
+        CUSTOMER_NAME: custName,
+        CUSTOMER_PHONE: custPhone,
+        CUSTOMER_ADDRESS: custAddress,
+        ITEMS: items,
+        SUB_TOTAL: subTotal,
+        TOTAL_GST_AMOUNT: totalGst,
+        TOTAL_AMOUNT: grandTotal,
+        CREATED_BY: (auth.currentUser || JSON.parse(localStorage.getItem('userSession'))).uid,
+        CREATED_DATE: now.toISOString(),
+        STATUS_SYS_ID: 1
+    };
+
+    // Get HTML
+    const billHtml = getBillHtmlContent(billData);
+
+    // Open Modal with Iframe
+    const modal = document.getElementById('sharedModal');
+    const content = document.getElementById('modalContent');
+    modal.classList.remove('hidden');
+
+    // Blob URL for iframe
+    const blob = new Blob([billHtml], { type: 'text/html' });
+    const blobUrl = URL.createObjectURL(blob);
+
+    content.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <h2>Bill Preview</h2>
+            <button class="btn" id="closePreviewBtn">&times; Close</button>
+        </div>
+        <iframe src="${blobUrl}" style="width: 100%; height: 70vh; border: 1px solid #e2e8f0; border-radius: 8px;"></iframe>
+        <div style="text-align: right; margin-top: 1rem;">
+            <button id="previewPrintBtn" class="btn btn-primary">Generate & Print</button>
+        </div>
+    `;
+
+    document.getElementById('closePreviewBtn').addEventListener('click', () => {
+        modal.classList.add('hidden');
+        URL.revokeObjectURL(blobUrl);
+    });
+
+    document.getElementById('previewPrintBtn').addEventListener('click', () => {
+        modal.classList.add('hidden');
+        URL.revokeObjectURL(blobUrl);
+        generateBill();
+    });
+}
+
+
+
+// ==========================================
+// REPORTS VIEW
+// ==========================================
+
+let allBills = []; // Cache for reports
+
+async function renderReportsView(container) {
+    container.innerHTML = `
+        <div class="section-header">
+            <h2>Sales Reports</h2>
+        </div>
+        <div class="card">
+            <div class="report-filters" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+                <div class="form-group">
+                    <label class="form-label">Start Date</label>
+                    <input type="date" id="repStartDate" class="form-input">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">End Date</label>
+                    <input type="date" id="repEndDate" class="form-input">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Customer Name</label>
+                    <input type="text" id="repCustName" class="form-input" placeholder="Search Customer">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Customer Phone</label>
+                    <input type="text" id="repCustPhone" class="form-input" placeholder="Search Phone">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Customer Address</label>
+                    <input type="text" id="repAddress" class="form-input" placeholder="Search Address">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Brand</label>
+                    <input type="text" id="repBrand" class="form-input" placeholder="Search Brand">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Product Name</label>
+                    <input type="text" id="repProduct" class="form-input" placeholder="Search Product">
+                </div>
+            </div>
+            <div class="report-actions" style="display: flex; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap;">
+                <button id="repFilterBtn" class="btn btn-primary">Filter Reports</button>
+                <button id="repResetBtn" class="btn">Reset Filters</button>
+                <div style="flex: 1;"></div>
+                <button id="repPdfBtn" class="btn" style="background: #ef4444; color: white;">Export PDF</button>
+                <button id="repExcelBtn" class="btn" style="background: #10b981; color: white;">Export Excel</button>
+            </div>
+            
+            <div class="table-container">
+                <table class="data-table" id="reportTable">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Bill No</th>
+                            <th>Customer</th>
+                            <th>Mobile</th>
+                            <th>Items</th>
+                            <th>Total Amt</th>
+                        </tr>
+                    </thead>
+                    <tbody id="reportTableBody">
+                        <tr><td colspan="6">Click "Filter Reports" to load data.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+             <div style="margin-top: 1rem; text-align: right; font-weight: bold;">
+                Total Sales: ₹<span id="repTotalSales">0.00</span>
+            </div>
+        </div>
+    `;
+
+    document.getElementById('repFilterBtn').addEventListener('click', applyReportFilters);
+    document.getElementById('repResetBtn').addEventListener('click', () => {
+        document.querySelectorAll('.report-filters input').forEach(i => i.value = '');
+        applyReportFilters();
+    });
+    document.getElementById('repPdfBtn').addEventListener('click', () => exportReport('pdf'));
+    document.getElementById('repExcelBtn').addEventListener('click', () => exportReport('excel'));
+
+    // Initial Load
+    await loadReportsData();
+}
+
+async function loadReportsData() {
+    try {
+        const snapshot = await get(child(ref(db), `BILL_DETAILS/${currentCompanyId}`));
+        allBills = [];
+        if (snapshot.exists()) {
+            snapshot.forEach(child => {
+                const val = child.val();
+                if (val.STATUS_SYS_ID == 0) return; // Skip inactive
+                allBills.push({ id: child.key, ...val });
+            });
+            // Sort Descending Date
+            allBills.sort((a, b) => new Date(b.CREATED_DATE) - new Date(a.CREATED_DATE));
+        }
+    } catch (error) {
+        console.error("Error loading bills for reports:", error);
+    }
+}
+
+function applyReportFilters() {
+    const startDate = document.getElementById('repStartDate').value ? new Date(document.getElementById('repStartDate').value) : null;
+    if (startDate) startDate.setHours(0, 0, 0, 0);
+
+    const endDate = document.getElementById('repEndDate').value ? new Date(document.getElementById('repEndDate').value) : null;
+    if (endDate) endDate.setHours(23, 59, 59, 999);
+
+    const custName = document.getElementById('repCustName').value.toLowerCase();
+    const custPhone = document.getElementById('repCustPhone').value.toLowerCase();
+    const address = document.getElementById('repAddress').value.toLowerCase();
+    const brand = document.getElementById('repBrand').value.toLowerCase();
+    const product = document.getElementById('repProduct').value.toLowerCase();
+
+    const filtered = allBills.filter(bill => {
+        const billDate = new Date(bill.CREATED_DATE);
+
+        // Date Range
+        if (startDate && billDate < startDate) return false;
+        if (endDate && billDate > endDate) return false;
+
+        // Customer Details
+        if (custName && !(bill.CUSTOMER_NAME || '').toLowerCase().includes(custName)) return false;
+        if (custPhone && !(bill.CUSTOMER_PHONE || '').toLowerCase().includes(custPhone)) return false;
+        if (address && !(bill.CUSTOMER_ADDRESS || '').toLowerCase().includes(address)) return false;
+
+        // Items Search (Brand or Product Name)
+        if (brand || product) {
+            const hasItem = (bill.ITEMS || []).some(item => {
+                const matchBrand = !brand || (item.BRAND || '').toLowerCase().includes(brand);
+                const matchProd = !product || (item.NAME || '').toLowerCase().includes(product);
+                return matchBrand && matchProd;
+            });
+            if (!hasItem) return false;
+        }
+
+        return true;
+    });
+
+    renderReportTable(filtered);
+}
+
+function renderReportTable(bills) {
+    const tbody = document.getElementById('reportTableBody');
+    tbody.innerHTML = '';
+    let totalSales = 0;
+
+    if (bills.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6">No records found.</td></tr>';
+        document.getElementById('repTotalSales').textContent = '0.00';
+        return;
+    }
+
+    bills.forEach(bill => {
+        totalSales += (bill.TOTAL_AMOUNT || 0);
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${new Date(bill.CREATED_DATE).toLocaleDateString()}</td>
+            <td>${bill.BILL_NO}</td>
+            <td>${bill.CUSTOMER_NAME}</td>
+            <td>${bill.CUSTOMER_PHONE || '-'}</td>
+            <td>${(bill.ITEMS || []).length}</td>
+            <td style="text-align: right;">₹${bill.TOTAL_AMOUNT.toFixed(2)}</td>
+        `;
+        tbody.appendChild(row);
+    });
+
+    document.getElementById('repTotalSales').textContent = totalSales.toFixed(2);
+}
+
+// ==========================================
+// REPORTS EXPORT LOGIC ENHANCED
+// ==========================================
+
+function exportReport(type) {
+    const startDateVal = document.getElementById('repStartDate').value;
+    const endDateVal = document.getElementById('repEndDate').value;
+
+    // Construct Query Summary
+    let querySummary = [];
+    if (startDateVal) querySummary.push(`From: ${startDateVal}`);
+    if (endDateVal) querySummary.push(`To: ${endDateVal}`);
+
+    const filters = [
+        { id: 'repCustName', label: 'Customer' },
+        { id: 'repCustPhone', label: 'Phone' },
+        { id: 'repAddress', label: 'Address' },
+        { id: 'repBrand', label: 'Brand' },
+        { id: 'repProduct', label: 'Product' }
+    ];
+
+    filters.forEach(f => {
+        const val = document.getElementById(f.id).value;
+        if (val) querySummary.push(`${f.label}: ${val}`);
+    });
+
+    const queryString = querySummary.length > 0 ? querySummary.join(', ') : "All Records";
+
+    // Filtering Logic (Duplicated for consistency)
+    const startDate = startDateVal ? new Date(startDateVal) : null;
+    if (startDate) startDate.setHours(0, 0, 0, 0);
+    const endDate = endDateVal ? new Date(endDateVal) : null;
+    if (endDate) endDate.setHours(23, 59, 59, 999);
+    const custName = document.getElementById('repCustName').value.toLowerCase();
+    const custPhone = document.getElementById('repCustPhone').value.toLowerCase();
+    const address = document.getElementById('repAddress').value.toLowerCase();
+    const brand = document.getElementById('repBrand').value.toLowerCase();
+    const product = document.getElementById('repProduct').value.toLowerCase();
+
+    const filtered = allBills.filter(bill => {
+        // Exclude Inactive Bills
+        if (bill.STATUS_SYS_ID == 0) return false;
+
+        const billDate = new Date(bill.CREATED_DATE);
+        if (startDate && billDate < startDate) return false;
+        if (endDate && billDate > endDate) return false;
+        if (custName && !(bill.CUSTOMER_NAME || '').toLowerCase().includes(custName)) return false;
+        if (custPhone && !(bill.CUSTOMER_PHONE || '').toLowerCase().includes(custPhone)) return false;
+        if (address && !(bill.CUSTOMER_ADDRESS || '').toLowerCase().includes(address)) return false;
+        if (brand || product) {
+            const hasItem = (bill.ITEMS || []).some(item => {
+                const matchBrand = !brand || (item.BRAND || '').toLowerCase().includes(brand);
+                const matchProd = !product || (item.NAME || '').toLowerCase().includes(product);
+                return matchBrand && matchProd;
+            });
+            if (!hasItem) return false;
+        }
+        return true;
+    });
+
+    // Calculate Total
+    const totalAmount = filtered.reduce((sum, b) => sum + (b.TOTAL_AMOUNT || 0), 0).toFixed(2);
+
+    if (type === 'pdf') {
+        const element = document.getElementById('reportTable');
+        const container = document.createElement('div');
+
+        container.innerHTML = `
+            <style>
+                table { page-break-inside: auto; }
+                tr { page-break-inside: avoid; page-break-after: auto; }
+                thead { display: table-header-group; }
+                tfoot { display: table-footer-group; }
+            </style>
+            <div style="padding: 20px; font-family: sans-serif;">
+                <div style="text-align: center; margin-bottom: 20px;">
+                    <h2 style="margin: 0;">${companyData.COMPANY_NAME}</h2>
+                    <p style="margin: 5px 0;">${companyData.ADDRESS || ''}</p>
+                    <p style="margin: 5px 0;">Phone: ${companyData.PHONE_NO || ''} | Email: ${companyData.EMAIL || ''}</p>
+                    <hr>
+                        <h3>Sales Report</h3>
+                        <p><strong>Generated on:</strong> ${new Date().toLocaleString()}</p>
+                        <p><strong>Query:</strong> ${queryString}</p>
+                        <p><strong>Total Records:</strong> ${filtered.length}</p>
+                </div>
+                ${element.outerHTML}
+                <div style="text-align: right; margin-top: 20px; font-size: 1.2rem; font-weight: bold;">
+                    Total Sales: ₹${totalAmount}
+                </div>
+            </div>
+        `;
+
+        const opt = {
+            margin: 10,
+            filename: 'sales_report.pdf',
+            image: { type: 'jpeg', quality: 0.98 },
+            html2canvas: { scale: 2 },
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' },
+            pagebreak: { mode: ['css', 'legacy'] }
+        };
+        html2pdf().set(opt).from(container).save();
+    } else if (type === 'excel') {
+        let csvContent = "data:text/csv;charset=utf-8,";
+        csvContent += `Company: ${companyData.COMPANY_NAME} \n`;
+        csvContent += `Report Generated: ${new Date().toLocaleString()} \n`;
+        csvContent += `Query: ${queryString} \n\n`;
+        csvContent += "Date,Bill No,Customer Name,Phone,Address,Items Count,Total Amount\n";
+
+        filtered.forEach(bill => {
+            const date = new Date(bill.CREATED_DATE).toLocaleDateString();
+            const row = [
+                date,
+                bill.BILL_NO,
+                bill.CUSTOMER_NAME,
+                bill.CUSTOMER_PHONE || '',
+                (bill.CUSTOMER_ADDRESS || '').replace(/,/g, ' '),
+                (bill.ITEMS || []).length,
+                bill.TOTAL_AMOUNT.toFixed(2)
+            ].join(",");
+            csvContent += row + "\r\n";
+        });
+
+        csvContent += `,,,,, Total, ${totalAmount} \n`;
+
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", "sales_report.csv");
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+}
+
+
+
+// ==========================================
+// CUSTOM UTILS
+// ==========================================
+
+function showCustomAlert(message, title = "Alert", type = "alert") {
+    return new Promise((resolve) => {
+        const overlay = document.getElementById('customAlert');
+        const titleEl = document.getElementById('customAlertTitle');
+        const msgEl = document.getElementById('customAlertMessage');
+        const okBtn = document.getElementById('customAlertBtn');
+        const cancelBtn = document.getElementById('customAlertCancelBtn');
+        const input = document.getElementById('customAlertInput');
+
+        // Backward compatibility for isPassword boolean
+        if (type === true) type = "password";
+
+        titleEl.textContent = title;
+        msgEl.textContent = message;
+
+        input.style.display = 'none';
+        cancelBtn.style.display = 'none';
+        okBtn.textContent = 'OK';
+
+        if (type === "password") {
+            input.style.display = 'block';
+            input.value = '';
+            input.focus();
+        } else if (type === "confirm") {
+            cancelBtn.style.display = 'block';
+            okBtn.textContent = 'Yes';
+        }
+
+        overlay.classList.add('active');
+
+        const handleOk = () => {
+            cleanup();
+            if (type === "password") {
+                resolve(input.value);
+            } else {
+                resolve(true); // OK/Yes
+            }
+        };
+
+        const handleCancel = () => {
+            cleanup();
+            resolve(false); // Cancel/No
+        };
+
+        const cleanup = () => {
+            overlay.classList.remove('active');
+            okBtn.removeEventListener('click', handleOk);
+            cancelBtn.removeEventListener('click', handleCancel);
+        };
+
+        okBtn.addEventListener('click', handleOk);
+        cancelBtn.addEventListener('click', handleCancel);
+    });
+}
+
+// Replace global alert (Optional, but user asked for specific behavior first)
+// We will use showCustomAlert explicitly in our flow.
+
+// ... (Rest of file)
 
 // --- Category Logic ---
 
@@ -1429,49 +2238,96 @@ async function loadProducts() {
     const tbody = document.getElementById('productsTableBody');
     if (!tbody) return;
 
-    tbody.innerHTML = '<tr><td colspan="8">Loading...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9">Loading...</td></tr>';
 
     try {
         const snapshot = await get(child(ref(db), `PRODUCT_DETAILS/${currentCompanyId}`));
-        tbody.innerHTML = '';
 
         if (!snapshot.exists()) {
-            tbody.innerHTML = '<tr><td colspan="8">No products found.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="9">No products found.</td></tr>';
+            viewState.products.data = [];
+            viewState.products.filtered = [];
             return;
         }
 
         const products = snapshot.val();
-        // Fetch categories to map ID to Name
+        // Fetch categories to map ID to Name and CHECK STATUS
         const catSnap = await get(child(ref(db), `CATEGORY_DETAILS/${currentCompanyId}`));
         const categories = catSnap.exists() ? catSnap.val() : {};
 
+        const loadedProducts = [];
         Object.keys(products).forEach(key => {
             const p = products[key];
-            const catName = categories[p.CATEGORY_SYS_ID] ? categories[p.CATEGORY_SYS_ID].CATEGORY_NAME : 'Unknown';
+            const cat = categories[p.CATEGORY_SYS_ID];
+            const catName = cat ? cat.CATEGORY_NAME : 'Unknown';
+            const isCatInactive = cat && cat.STATUS_SYS_ID != 1;
+
+            loadedProducts.push({
+                id: key,
+                ...p,
+                catName,
+                isCatInactive
+            });
+        });
+
+        viewState.products.data = loadedProducts;
+        applyProductFilters();
+
+    } catch (error) {
+        console.error("Error loading products:", error);
+        tbody.innerHTML = '<tr><td colspan="9">Error loading products.</td></tr>';
+    }
+}
+
+function applyProductFilters() {
+    const q = viewState.products.search;
+    viewState.products.filtered = viewState.products.data.filter(p => {
+        if (!q) return true;
+        return (p.PRODUCT_NAME || '').toLowerCase().includes(q) ||
+            (p.BRAND || '').toLowerCase().includes(q) ||
+            (p.catName || '').toLowerCase().includes(q);
+    });
+    updateProductsTable();
+}
+
+function updateProductsTable() {
+    const tbody = document.getElementById('productsTableBody');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+
+    const records = getPaginatedData('products');
+
+    if (records.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="9">No matched products.</td></tr>';
+    } else {
+        records.forEach(p => {
+            // If Category is Inactive, show Product Name in RED
+            const nameStyle = p.isCatInactive ? 'color: red; font-weight: bold;' : '';
+            const catStyle = p.isCatInactive ? 'color: red;' : '';
+
             const row = document.createElement('tr');
             row.innerHTML = `
+                <td><input type="checkbox" class="prod-chk" data-id="${p.id}"></td>
                 <td><img src="${p.IMAGE_URL || 'https://via.placeholder.com/50'}" alt="Product" style="width: 50px; height: 50px; object-fit: cover; border-radius: 4px;"></td>
-                <td>${p.PRODUCT_NAME}</td>
+                <td style="${nameStyle}">${p.PRODUCT_NAME} ${p.isCatInactive ? '(Deleted Cat)' : ''}</td>
                 <td>${p.BRAND || '-'}</td>
-                <td>${catName}</td>
+                <td style="${catStyle}">${p.catName}</td>
                 <td>₹${p.PRICE}</td>
                 <td>${p.STOCK_COUNT}</td>
-                <td><span class="status-badge ${p.STATUS_SYS_ID == 1 ? 'status-active' : 'status-inactive'}">${p.STATUS_SYS_ID == 1 ? 'Active' : 'Inactive'}</span></td>
+                <td><span class="status-badge ${p.STATUS_SYS_ID == 1 ? 'status-active' : 'status-inactive'}">${p.STATUS_SYS_ID == 1 ? 'Active' : 'Deleted'}</span></td>
                 <td>
-                    <button class="btn-icon edit-prod-btn" data-id="${key}">Edit</button>
+                    <button class="btn-icon edit-prod-btn" data-id="${p.id}" title="Edit"><span style="font-size:1.2rem;">&#9998;</span></button>
+                    <!-- <button class="btn-icon delete-prod-btn" data-id="${p.id}" style="color:red;">Del</button> -->
                 </td>
             `;
             tbody.appendChild(row);
         });
 
         document.querySelectorAll('.edit-prod-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => openEditProductModal(e.target.dataset.id));
+            btn.addEventListener('click', (e) => openEditProductModal(e.currentTarget.dataset.id));
         });
-
-    } catch (error) {
-        console.error("Error loading products:", error);
-        tbody.innerHTML = '<tr><td colspan="8">Error loading products.</td></tr>';
     }
+    renderPaginationControls('products', 'productsPagination');
 }
 
 async function loadCategories() {
@@ -1479,41 +2335,71 @@ async function loadCategories() {
     const tbody = document.getElementById('categoriesTableBody');
     if (!tbody) return;
 
-    tbody.innerHTML = '<tr><td colspan="3">Loading...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="4">Loading...</td></tr>';
 
     try {
         const dbRef = ref(db);
         const snapshot = await get(child(dbRef, `CATEGORY_DETAILS/${currentCompanyId}`));
 
-        tbody.innerHTML = '';
-
         if (!snapshot.exists()) {
-            tbody.innerHTML = '<tr><td colspan="3">No categories found.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="4">No categories found.</td></tr>';
+            viewState.categories.data = [];
+            viewState.categories.filtered = [];
             return;
         }
 
         const categories = snapshot.val();
+        const loadedCats = [];
         Object.keys(categories).forEach((key) => {
-            const data = categories[key];
-            const row = document.createElement('tr');
+            loadedCats.push({ id: key, ...categories[key] });
+        });
 
+        viewState.categories.data = loadedCats;
+        applyCategoryFilters();
+
+    } catch (error) {
+        console.error("Error loading categories:", error);
+        tbody.innerHTML = '<tr><td colspan="4">Error loading categories.</td></tr>';
+    }
+}
+
+function applyCategoryFilters() {
+    const q = viewState.categories.search;
+    viewState.categories.filtered = viewState.categories.data.filter(c => {
+        if (!q) return true;
+        return (c.CATEGORY_NAME || '').toLowerCase().includes(q);
+    });
+    updateCategoriesTable();
+}
+
+function updateCategoriesTable() {
+    const tbody = document.getElementById('categoriesTableBody');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+
+    const records = getPaginatedData('categories');
+
+    if (records.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4">No matched categories.</td></tr>';
+    } else {
+        records.forEach(data => {
+            const row = document.createElement('tr');
             row.innerHTML = `
+                <td><input type="checkbox" class="cat-chk" data-id="${data.id}"></td>
                 <td>${data.CATEGORY_NAME}</td>
-                <td>${data.STATUS_SYS_ID == 1 ? 'Active' : 'Inactive'}</td>
+                <td>${data.STATUS_SYS_ID == 1 ? 'Active' : 'Deleted'}</td>
                 <td>
-                    <button class="btn-icon edit-cat-btn" data-id="${key}">Edit</button>
+                    <button class="btn-icon edit-cat-btn" data-id="${data.id}" title="Edit"><span style="font-size:1.2rem;">&#9998;</span></button>
                 </td>
             `;
             tbody.appendChild(row);
         });
 
         document.querySelectorAll('.edit-cat-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => openEditCategoryModal(e.target.dataset.id));
+            btn.addEventListener('click', (e) => openEditCategoryModal(e.currentTarget.dataset.id));
         });
-
-    } catch (error) {
-        console.error("Error loading categories:", error);
     }
+    renderPaginationControls('categories', 'categoriesPagination');
 }
 
 function openCategoryModal(id = null) {
@@ -1522,33 +2408,33 @@ function openCategoryModal(id = null) {
     modal.classList.remove('hidden');
 
     content.innerHTML = `
-        <h2 id="catModalTitle">${id ? 'Edit' : 'Add'} Category</h2>
-        <form id="categoryForm">
-            <input type="hidden" id="catId" value="${id || ''}">
-            <div class="form-group">
-                <label class="form-label">Category Name</label>
-                <input type="text" id="catName" class="form-input" required>
-            </div>
-            <div class="form-group">
-                <label class="form-label">Status</label>
-                <select id="catStatus" class="form-input">
-                    <option value="1">Active</option>
-                    <option value="2">Inactive</option>
-                </select>
-            </div>
-            <div class="modal-actions">
-                <button type="button" id="catCancelBtn" class="btn">Cancel</button>
-                <button type="submit" class="btn btn-primary">Save</button>
-            </div>
-        </form>
-    `;
+            < h2 id = "catModalTitle" > ${id ? 'Edit' : 'Add'} Category</h2 >
+                <form id="categoryForm">
+                    <input type="hidden" id="catId" value="${id || ''}">
+                        <div class="form-group">
+                            <label class="form-label">Category Name</label>
+                            <input type="text" id="catName" class="form-input" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Status</label>
+                            <select id="catStatus" class="form-input">
+                                <option value="1">Active</option>
+                                <option value="2">Delete</option>
+                            </select>
+                        </div>
+                        <div class="modal-actions">
+                            <button type="button" id="catCancelBtn" class="btn">Cancel</button>
+                            <button type="submit" class="btn btn-primary">Save</button>
+                        </div>
+                </form>
+        `;
 
     document.getElementById('catCancelBtn').addEventListener('click', () => modal.classList.add('hidden'));
     document.getElementById('categoryForm').addEventListener('submit', handleCategorySubmit);
 
     if (id) {
         // Fetch data if editing
-        get(child(ref(db), `CATEGORY_DETAILS/${currentCompanyId}/${id}`)).then(snapshot => {
+        get(child(ref(db), `CATEGORY_DETAILS / ${currentCompanyId}/${id}`)).then(snapshot => {
             if (snapshot.exists()) {
                 const data = snapshot.val();
                 document.getElementById('catName').value = data.CATEGORY_NAME;
@@ -1614,7 +2500,7 @@ async function openProductModal(id = null) {
                     <label class="form-label">Status</label>
                     <select id="prodStatus" class="form-input">
                         <option value="1">Active</option>
-                        <option value="2">Inactive</option>
+                        <option value="2">Delete</option>
                     </select>
                 </div>
                 <div class="form-group full-width">
@@ -1662,6 +2548,7 @@ async function openEditProductModal(id) {
 
 async function handleCategorySubmit(e) {
     e.preventDefault();
+    if (!await showCustomAlert("Are you sure you want to save this category?", "Confirm Save", "confirm")) return;
     const id = document.getElementById('catId').value;
     const name = document.getElementById('catName').value;
     const status = parseInt(document.getElementById('catStatus').value);
@@ -1695,6 +2582,7 @@ async function handleCategorySubmit(e) {
 
 async function handleProductSubmit(e) {
     e.preventDefault();
+    if (!await showCustomAlert("Are you sure you want to save this product?", "Confirm Save", "confirm")) return;
     const id = document.getElementById('prodId').value;
     const name = document.getElementById('prodName').value;
     const brand = document.getElementById('prodBrand').value;
@@ -1804,4 +2692,191 @@ function compressImage(file) {
         };
         reader.onerror = (err) => reject(err);
     });
+}
+
+async function handleDeleteSales() {
+    try {
+        const snapshot = await get(child(ref(db), `BILL_DETAILS/${currentCompanyId}`));
+        if (!snapshot.exists()) return showCustomAlert("No sales bills found.", "Info");
+
+        const updates = {};
+        snapshot.forEach(childSnap => {
+            updates[`BILL_DETAILS/${currentCompanyId}/${childSnap.key}/STATUS_SYS_ID`] = 0;
+        });
+
+        await update(ref(db), updates);
+        await logAction("DELETE_ALL", "BILL_DETAILS", "ALL", { COMPANY_SYS_ID: currentCompanyId });
+        await showCustomAlert("All sales bills marked as inactive.", "Success");
+    } catch (error) {
+        console.error(error);
+        showCustomAlert("Error deleting sales.", "Error");
+    }
+}
+
+// ==========================================
+// USER MANAGEMENT
+// ==========================================
+
+function renderUsersView(container) {
+    if (currentUserRole != 2) {
+        container.innerHTML = '<p>Access Denied</p>';
+        return;
+    }
+    container.innerHTML = `
+        <div class="section-header">
+            <h2>User Management</h2>
+            <div style="display:flex; gap: 10px;">
+                <button id="addUserBtn" class="btn btn-primary" title="Add User"><span style="font-size:1.1rem; vertical-align:middle;">&#43;</span></button>
+            </div>
+        </div>
+        <div class="table-container">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Role</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="usersTableBody"><tr><td colspan="5">Loading...</td></tr></tbody>
+            </table>
+        </div>
+    `;
+
+    document.getElementById('addUserBtn').addEventListener('click', () => showCustomAlert("To add a user, please ask them to Sign Up and then edit their role here, or use the Super Admin panel.", "Info"));
+    // Alternatively, implement specific Add User logic if required, but usually linked to Auth.
+    // For now, listing existing users.
+
+    loadUsers();
+}
+
+async function loadUsers() {
+    const tbody = document.getElementById('usersTableBody');
+    if (!tbody) return;
+    tbody.innerHTML = '<tr><td colspan="5">Loading...</td></tr>';
+
+    try {
+        // Fetch all users and filter by COMPANY_SYS_ID
+        // In a real app, use a query. Here, we'll fetch all USER_DETAILS (assuming structure).
+        // WARNING: Access rules might prevent reading all users.
+        // If so, we'd need a dedicated index `USER_DETAILS/${currentCompanyId}` or similar.
+        // Let's try querying by orderByChild.
+
+        // Fetch all users and filter client-side to avoid Index error
+        const snapshot = await get(ref(db, 'USER_DETAILS'));
+
+        tbody.innerHTML = '';
+
+        if (!snapshot.exists()) {
+            tbody.innerHTML = '<tr><td colspan="5">No users found.</td></tr>';
+            return;
+        }
+
+        snapshot.forEach(childSnap => {
+            const user = childSnap.val();
+            // Client-side filter
+            if (user.COMPANY_SYS_ID != currentCompanyId) return;
+            const row = document.createElement('tr');
+            const roleName = user.ROLE_SYS_ID == 2 ? 'Admin' : (user.ROLE_SYS_ID == 3 ? 'Employee' : 'User');
+
+            row.innerHTML = `
+                <td>${user.DISPLAY_NAME || '-'}</td>
+                <td>${user.USER_ID}</td>
+                <td>${roleName}</td>
+                <td>${user.STATUS_SYS_ID == 1 ? 'Active' : 'Deleted'}</td>
+                <td>
+                    <button class="btn-icon edit-user-btn" data-id="${childSnap.key}" title="Edit"><span style="font-size:1.2rem;">&#9998;</span></button>
+                </td>
+            `;
+            tbody.appendChild(row);
+        });
+
+        document.querySelectorAll('.edit-user-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => openUserModal(e.currentTarget.dataset.id));
+        });
+
+    } catch (error) {
+        console.error("Error loading users:", error);
+        tbody.innerHTML = '<tr><td colspan="5">Error loading users (Check Console).</td></tr>';
+    }
+}
+
+async function openUserModal(userId) {
+    const modal = document.getElementById('sharedModal');
+    const content = document.getElementById('modalContent');
+    modal.classList.remove('hidden');
+
+    const snapshot = await get(child(ref(db), `USER_DETAILS/${userId}`));
+    if (!snapshot.exists()) {
+        modal.classList.add('hidden');
+        return showCustomAlert("User not found.", "Error");
+    }
+    const user = snapshot.val();
+
+    content.innerHTML = `
+        <h2 id="userModalTitle">Edit User</h2>
+        <form id="userForm">
+            <input type="hidden" id="editUserId" value="${userId}">
+            <div class="form-group">
+                <label class="form-label">Display Name</label>
+                <input type="text" id="editUserName" class="form-input" value="${user.DISPLAY_NAME || ''}" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Email</label>
+                <input type="email" class="form-input" value="${user.USER_ID}" readonly disabled style="background:#f3f4f6;">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Role</label>
+                <select id="editUserRole" class="form-input">
+                    <option value="2" ${user.ROLE_SYS_ID == 2 ? 'selected' : ''}>Company Admin</option>
+                    <option value="3" ${user.ROLE_SYS_ID == 3 ? 'selected' : ''}>Employee</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Status</label>
+                <select id="editUserStatus" class="form-input">
+                    <option value="1" ${user.STATUS_SYS_ID == 1 ? 'selected' : ''}>Active</option>
+                    <option value="2" ${user.STATUS_SYS_ID == 2 ? 'selected' : ''}>Delete</option>
+                </select>
+            </div>
+            <div class="modal-actions">
+                <button type="button" id="userCancelBtn" class="btn">Cancel</button>
+                <button type="submit" class="btn btn-primary">Save Changes</button>
+            </div>
+        </form>
+    `;
+
+    document.getElementById('userCancelBtn').addEventListener('click', () => modal.classList.add('hidden'));
+    document.getElementById('userForm').addEventListener('submit', handleUserSubmit);
+}
+
+async function handleUserSubmit(e) {
+    e.preventDefault();
+    if (!await showCustomAlert("Save changes to this user?", "Confirm Update", "confirm")) return;
+
+    const id = document.getElementById('editUserId').value;
+    const name = document.getElementById('editUserName').value;
+    const role = parseInt(document.getElementById('editUserRole').value);
+    const status = parseInt(document.getElementById('editUserStatus').value);
+
+    // Only update these fields
+    const updates = {
+        DISPLAY_NAME: name,
+        ROLE_SYS_ID: role,
+        STATUS_SYS_ID: status,
+        UPDATED_DATE: new Date().toISOString()
+    };
+
+    try {
+        await update(ref(db, `USER_DETAILS/${id}`), updates);
+        await logAction("UPDATE", "USER_DETAILS", id, { ...updates, COMPANY_SYS_ID: currentCompanyId });
+        showCustomAlert("User updated successfully.", "Success");
+        document.getElementById('sharedModal').classList.add('hidden');
+        loadUsers();
+    } catch (err) {
+        console.error(err);
+        showCustomAlert("Error updating user.", "Error");
+    }
 }
