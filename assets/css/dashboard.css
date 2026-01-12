@@ -25,70 +25,89 @@ body {
 }
 
 /* Sidebar Layout */
+/* Sidebar Layout */
 .dashboard-layout {
     display: flex;
-    min-height: 100vh;
-    background-color: var(--background-color);
-    align-items: flex-start;
-    /* Important for sticky to work if content is shorter */
+    height: 100vh;
+    /* Fixed height to prevent body scroll */
+    width: 100%;
+    overflow: hidden;
+    /* Main container doesn't scroll */
 }
 
 .sidebar {
-    width: 220px;
+    width: 250px;
     background: var(--sidebar-gradient);
     color: var(--text-primary);
     display: flex;
     flex-direction: column;
     flex-shrink: 0;
     box-shadow: 4px 0 24px rgba(0, 0, 0, 0.1);
-    z-index: 10;
-    position: sticky;
-    top: 0;
-    height: 100vh;
+    z-index: 100;
+    height: 100%;
+    /* Full height of container */
+    overflow-y: auto;
+    /* Scrollable menu if items exceed height */
+    transition: width 0.3s ease;
 }
 
+/* Sidebar Header */
 .sidebar-header {
-    padding: 2rem 1.5rem;
+    padding: 1.5rem 1rem;
     border-bottom: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    white-space: nowrap;
+    /* Prevent text wrap during transition */
+    overflow: hidden;
 }
 
 .sidebar-header h2 {
     margin: 0;
-    font-size: 1.5rem;
+    font-size: 1.25rem;
     font-weight: 700;
     color: var(--text-primary);
-    background: none;
-    -webkit-text-fill-color: initial;
+    margin-left: 10px;
 }
 
+/* Navigation */
 .sidebar-nav {
     flex: 1;
-    padding: 1.5rem 1rem;
+    padding: 1rem;
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
+    overflow-x: hidden;
 }
 
 .nav-item {
     display: flex;
     align-items: center;
     width: 100%;
-    padding: 1rem 1.25rem;
+    padding: 0.75rem 1rem;
     text-align: left;
     background: transparent;
     border: none;
-    border-radius: 0.75rem;
+    border-radius: 0.5rem;
     color: var(--text-secondary);
     cursor: pointer;
-    transition: all 0.3s ease;
+    transition: all 0.2s ease;
     font-size: 0.95rem;
     font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+.nav-item>span:first-of-type {
+    display: inline-block;
+    opacity: 1;
+    transition: opacity 0.2s;
 }
 
 .nav-item:hover {
     background-color: rgba(0, 0, 0, 0.05);
     color: var(--text-primary);
-    transform: translateX(4px);
 }
 
 .nav-item.active {
@@ -97,89 +116,154 @@ body {
     box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
 }
 
+/* Footer in Sidebar */
 .sidebar-footer {
     padding: 1rem;
     border-top: 1px solid var(--border-color);
     background-color: #f8fafc;
+    flex-shrink: 0;
 }
 
-.user-info-sm {
-    font-size: 0.875rem;
-    color: #cbd5e1;
-    margin-bottom: 1rem;
-    font-weight: 500;
-    word-break: break-all;
-}
-
-/* Main Content */
+/* Main Content Area */
 .main-content {
-    flex: 1;
-    padding: 2.5rem;
-    /* padding-bottom: 4rem; */
-    /* Add space for the fixed footer */
-    /* overflow-y: auto;  REMOVED so the whole page scrolls except sidebar */
-    /* height: 100vh; REMOVED */
+    flex-grow: 1;
+    min-width: 0;
+    /* Critical for flex child to shrink properly */
+    padding: 1.5rem;
+    background-color: var(--background-color);
+    transition: all 0.3s ease;
+    height: 100%;
+    /* Take full available height */
+    overflow-y: auto;
+    /* Scroll internally */
+    -webkit-overflow-scrolling: touch;
+    /* Smooth scroll on mobile */
 }
 
-.section-header {
+/* Sidebar Logo & Toggle Overrides */
+.sidebar-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 2rem;
-}
-
-.section-header h2 {
-    font-size: 1.875rem;
-    font-weight: 700;
-    color: var(--text-primary);
-    letter-spacing: -0.025em;
-    margin: 0;
-}
-
-/* Cards & Tables */
-.card,
-.table-container {
-    background: var(--surface-color);
-    border-radius: var(--border-radius);
-    box-shadow: var(--card-shadow);
-    border: 1px solid rgba(229, 231, 235, 0.5);
+    padding: 1rem 1rem;
+    /* Reduced vertical padding */
+    border-bottom: 1px solid var(--border-color);
+    white-space: nowrap;
     overflow: hidden;
-    transition: transform 0.2s, box-shadow 0.2s;
-    margin-bottom: 2rem;
 }
 
+.logo-area {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    overflow: hidden;
+    /* Ensure long titles don't break layout */
+}
+
+#sidebarLogo {
+    width: 40px;
+    /* Smaller Logo */
+    height: 40px;
+    object-fit: cover;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    background-color: white;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.sidebar-toggle {
+    background: transparent;
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    transition: all 0.2s;
+}
+
+.sidebar-toggle:hover {
+    background: rgba(0, 0, 0, 0.05);
+}
+
+.sidebar-header h2 {
+    font-size: 1.1rem;
+    /* Slightly smaller text */
+    line-height: 1.2;
+    white-space: nowrap;
+    margin: 0;
+    color: var(--text-primary);
+}
+
+/* Collapsed Sidebar Styles */
+.sidebar.collapsed {
+    width: 60px;
+    /* Compact width */
+}
+
+.sidebar.collapsed .sidebar-header {
+    padding: 1rem 0.5rem;
+    justify-content: center;
+}
+
+.sidebar.collapsed .logo-area h2,
+.sidebar.collapsed .nav-item span:not(.badge),
+.sidebar.collapsed .sidebar-footer .user-info-sm,
+.sidebar.collapsed .sidebar-footer #logoutBtn .text-content {
+    display: none !important;
+}
+
+.sidebar.collapsed .logo-area {
+    gap: 0;
+    justify-content: center;
+    width: 100%;
+}
+
+.sidebar.collapsed .sidebar-toggle {
+    display: none;
+    /* Hide toggle inside collapsed header (optional, or move it) */
+}
+
+/* If we want to toggle back nicely, we usually keep the logo clickable or have a small toggler.
+   Current admin.js toggles on logo click too. Let's keep sidebar toggle hidden in collapsed to save space 
+   and rely on logo click or specific UI. 
+   Actually, previous design had a floating toggle at bottom. Let's stick to header toggle but maybe conceal it or make logo the toggle. 
+   Let's keep the logo as the primary toggle when collapsed.
+*/
+
+.sidebar.collapsed .nav-item {
+    justify-content: center;
+    padding: 0.75rem 0.25rem;
+    text-align: center;
+}
+
+.sidebar.collapsed .nav-item::before {
+    margin-right: 0;
+    font-size: 1rem;
+    /* Larger icon in collapsed mode */
+}
+
+/* Cards & Tables - Bootstrap Overrides */
 .card {
-    padding: 2rem;
+    border: none;
+    box-shadow: var(--shadow-sm);
+    margin-bottom: 1.5rem;
 }
 
 .data-table {
     width: 100%;
-    border-collapse: collapse;
+    margin-bottom: 0;
 }
 
-.data-table th {
-    background-color: #f8fafc;
-    color: #64748b;
-    text-transform: uppercase;
-    font-size: 0.75rem;
-    letter-spacing: 0.05em;
-    padding: 1.25rem 1.5rem;
-    text-align: left;
-    font-weight: 600;
-}
-
+.data-table th,
 .data-table td {
-    padding: 1.25rem 1.5rem;
-    color: var(--text-primary);
-    border-bottom: 1px solid #f1f5f9;
-}
-
-.data-table tr:last-child td {
-    border-bottom: none;
-}
-
-.data-table tr:hover td {
-    background-color: #f8fafc;
+    padding: 1rem;
+    vertical-align: middle;
 }
 
 /* Buttons */
@@ -255,49 +339,111 @@ body {
     color: #991b1b;
 }
 
-/* Form Inputs */
-.form-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 1.5rem;
+/* Add icons via Pseudo-elements if not present in HTML, 
+   BUT standard Bootstrap way is to use <i class="bi"></i> or similar.
+   Since code used ::before for icons, preserving that logic or expecting inner HTML.
+   Checking existing code: HTML has data-icon="...".
+*/
+/* Add icons via Pseudo-elements (Replaced by new round style at bottom) */
+.nav-item::before {
+    /* See new style definition below/above */
+    content: none;
 }
 
-.form-group {
+/* Cards & Tables - Bootstrap Overrides */
+.card {
+    border: none;
+    box-shadow: var(--shadow-sm);
+    margin-bottom: 1.5rem;
+}
+
+/* Keep data-table styles but make them Bootstrap compatible */
+.data-table {
+    width: 100%;
     margin-bottom: 0;
 }
 
-.full-width {
-    grid-column: span 2;
+.data-table th,
+.data-table td {
+    padding: 1rem;
+    vertical-align: middle;
 }
 
-.form-label {
-    display: block;
-    font-size: 0.875rem;
-    font-weight: 500;
-    color: var(--text-secondary);
-    margin-bottom: 0.5rem;
-}
-
-.form-input {
-    width: 100%;
-    padding: 0.75rem;
-    font-size: 0.95rem;
-    border: 1px solid var(--border-color);
+/* Buttons */
+.btn {
+    padding: 0.625rem 1.25rem;
     border-radius: 0.5rem;
-    background-color: #f9fafb;
+    font-weight: 500;
     transition: all 0.2s;
-    box-sizing: border-box;
+    cursor: pointer;
+    border: none;
+    font-size: 0.9rem;
 }
 
-.form-input:focus {
-    background-color: white;
-    border-color: #6366f1;
-    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
-    outline: none;
+.btn-primary {
+    background: var(--primary-gradient);
+    color: white;
+    box-shadow: 0 4px 6px rgba(79, 70, 229, 0.2);
 }
 
-/* Modal */
-.modal {
+.btn-primary:hover {
+    box-shadow: 0 6px 8px rgba(79, 70, 229, 0.3);
+    transform: translateY(-1px);
+}
+
+.btn-danger {
+    background-color: var(--danger-color);
+    color: white;
+}
+
+.btn-danger:hover {
+    background-color: #dc2626;
+}
+
+.btn-sm {
+    padding: 0.4rem 0.8rem;
+    font-size: 0.8rem;
+}
+
+.btn-icon {
+    background: none;
+    border: none;
+    color: #6366f1;
+    font-weight: 500;
+    padding: 0.25rem 0.5rem;
+    cursor: pointer;
+}
+
+.btn-icon:hover {
+    text-decoration: underline;
+}
+
+/* Status Badges */
+.status-badge {
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.status-active {
+    background-color: #dcfce7;
+    color: #166534;
+}
+
+.status-inactive {
+    background-color: #f1f5f9;
+    color: #475569;
+}
+
+.status-deleted {
+    background-color: #fee2e2;
+    color: #991b1b;
+}
+
+/* Custom Modal (Renamed to avoid Bootstrap conflict) */
+.custom-modal {
     position: fixed;
     top: 0;
     left: 0;
@@ -307,11 +453,12 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 50;
+    z-index: 1050;
+    /* Bootstrap z-index level */
     backdrop-filter: blur(4px);
 }
 
-.modal-content {
+.custom-modal-content {
     background-color: white;
     padding: 2.5rem;
     border-radius: 1rem;
@@ -323,214 +470,101 @@ body {
     position: relative;
 }
 
-.modal-content h2 {
+.custom-modal-content h2 {
     margin-top: 0;
     margin-bottom: 1.5rem;
     font-size: 1.5rem;
     color: var(--text-primary);
 }
 
-.modal-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 1rem;
-    margin-top: 2rem;
-    padding-top: 1.5rem;
-    border-top: 1px solid var(--border-color);
-}
-
 .hidden {
     display: none !important;
 }
 
-/* Media Queries */
+/* Mobile Media Queries */
 @media (max-width: 768px) {
-    .main-content {
-        padding: 1rem;
-    }
 
-    .form-grid {
-        grid-template-columns: 1fr;
-    }
-
-    .full-width {
-        grid-column: span 1;
-    }
-
-    .modal-content {
-        width: 90%;
-        padding: 1.5rem;
-    }
-}
-
-/* Sidebar Logo & Toggle Overrides */
-.sidebar-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 1.5rem;
-}
-
-.logo-area {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-}
-
-#sidebarLogo {
-    width: 50px;
-    height: 50px;
-    object-fit: cover;
-    border-radius: 8px;
-    border: 1px solid var(--border-color);
-    background-color: white;
-    cursor: pointer;
-}
-
-.sidebar-toggle {
-    background: transparent;
-    border: 1px solid var(--border-color);
-    color: var(--text-secondary);
-    width: 32px;
-    height: 32px;
-    border-radius: 6px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.2rem;
-    transition: all 0.2s;
-}
-
-.sidebar-toggle:hover {
-    background: rgba(0, 0, 0, 0.05);
-}
-
-.sidebar-header h2 {
-    font-size: 1.25rem;
-    line-height: 1.2;
-}
-
-/* Collapsed Sidebar Styles */
-.sidebar.collapsed {
-    width: 60px;
-}
-
-.sidebar.collapsed .sidebar-header {
-    padding: 1.5rem 1rem;
-    justify-content: center;
-}
-
-.sidebar.collapsed .logo-area h2,
-.sidebar.collapsed .nav-item span,
-.sidebar.collapsed .sidebar-footer .user-info-sm,
-.sidebar.collapsed .sidebar-footer #logoutBtn .text-content {
-    display: none;
-}
-
-.sidebar.collapsed .logo-area {
-    gap: 0;
-}
-
-.sidebar.collapsed .sidebar-toggle {
-    position: absolute;
-    bottom: 20px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 40px;
-    height: 40px;
-    background: rgba(0, 0, 0, 0.05);
-    border-radius: 50%;
-}
-
-.sidebar.collapsed .nav-item {
-    justify-content: center;
-    padding: 1rem;
-}
-
-.sidebar.collapsed .nav-item::before {
-    content: attr(data-icon);
-    font-size: 1.5rem;
-}
-
-/* Add icons to nav items if not present */
-.nav-item::before {
-    margin-right: 0.75rem;
-    font-size: 1.2rem;
-}
-
-.sidebar.collapsed .nav-item::before {
-    margin-right: 0;
-}
-
-/* Override mobile styles to keep sidebar layout */
-@media (max-width: 768px) {
+    /* Retain side-by-side layout */
     .dashboard-layout {
         flex-direction: row !important;
     }
 
-    .sidebar {
-        width: auto !important;
-        height: 100vh !important;
-        min-height: 100vh !important;
+    /* 1. collapsed state (Default on mobile load via JS) */
+    .sidebar.collapsed {
+        width: 60px;
     }
-}
 
-.sidebar.collapsed .sidebar-footer #logoutBtn {
+    /* 2. Expanded state (When user toggles) */
+    .sidebar {
+        width: 200px;
+        /* Smaller than desktop but wide enough for text */
+        transition: width 0.3s ease;
+        z-index: 1000;
+        /* Ensure it stays on top if we decide to overlay, but user asked for push */
+    }
 
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    display: flex;
-    justify-content: center;
-}
+    /* Adjust main content based on sidebar */
+    .sidebar.collapsed+.main-content {
+        width: calc(100% - 60px);
+        margin-left: 0;
+    }
 
-.sidebar.collapsed .sidebar-footer #logoutBtn .icon-content {
-    display: inline-block;
-    font-size: 1.2rem;
-}
+    .main-content {
+        padding: 1rem;
+        width: calc(100% - 200px);
+        /* Adjust for expanded sidebar */
+        transition: width 0.3s ease;
+    }
 
-.sidebar-footer #logoutBtn .icon-content {
-    display: none;
-}
+    /* Text visibility logic */
+    /* Hide text ONLY when collapsed */
+    .sidebar.collapsed .sidebar-header h2,
+    .sidebar.collapsed .nav-item span:not(.badge),
+    .sidebar.collapsed .sidebar-footer .user-info-sm,
+    .sidebar.collapsed .sidebar-footer #logoutBtn .text-content {
+        display: none !important;
+    }
 
-.sidebar-footer #logoutBtn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-}
+    /* Show text when expanded (implicit by removal of display:none) */
 
-.sidebar.collapsed .logo-area {
-    justify-content: center;
-}
+    /* Adjust logo area */
+    .sidebar.collapsed .logo-area {
+        justify-content: center;
+        margin: 0;
+    }
 
-.sidebar.collapsed #sidebarLogo {
-    width: 30px;
-    height: 30px;
-}
+    .sidebar.collapsed .sidebar-header {
+        padding: 0.5rem;
+        justify-content: center;
+    }
 
-.sidebar.collapsed #sidebarLogo {
-    border-radius: 50%;
-}
+    /* Toggle Button visibility */
+    /* We hid it in collapsed, let's keep it that way or allow it if needed. 
+       If it's hidden, user must click logo to expand. */
+    .sidebar.collapsed .sidebar-toggle {
+        display: none;
+    }
 
-.sidebar.collapsed #sidebarLogo {
-    border-radius: 8px;
-}
+    /* Center icons when collapsed */
+    .sidebar.collapsed .nav-item {
+        justify-content: center;
+        padding: 0.75rem 0;
+    }
 
-.sidebar.collapsed .nav-item {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    padding: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin: 0 auto;
-}
+    .sidebar.collapsed .nav-item::before {
+        margin: 0;
+        font-size: 1.3rem;
+    }
 
-.sidebar.collapsed .nav-item:hover {
-    background-color: rgba(0, 0, 0, 0.05);
+    /* Expanded State Mobile Overrides for cleaner look */
+    .sidebar:not(.collapsed) .nav-item {
+        justify-content: flex-start;
+        padding-left: 1rem;
+    }
+
+    .sidebar:not(.collapsed) .logo-area {
+        justify-content: flex-start;
+    }
 }
 
 /* Responsive Utilities */
@@ -720,32 +754,246 @@ body {
     width: 100%;
 }
 
-/* .sidebar.collapsed .nav-item:hover::before {
-    content: '';
-    position: absolute;
-    left: 100%;
-    top: 50%;
-    transform: translateY(-50%);
-    border-width: 5px;
-    border-style: solid;
-    border-color: transparent #1f2937 transparent transparent;
-    margin-left: 0px;
-    z-index: 100;
+/* =========================================
+   UI Refinements (Round Icons & Small Cards)
+   ========================================= */
+
+/* 1. Reduce Product Card Size in POS */
+.product-card {
+    width: 130px !important;
+    /* Force smaller width */
+    padding: 0.5rem !important;
+    font-size: 0.85rem;
 }
 
-.footer-credit {
-    display: none;
-    position: fixed;
-    bottom: 0;
-    left: 50%!important;
-    transform: translateX(-50%)!mportant;
-    font-size: 0.5rem;
-    color: var(--text-secondary);
+.product-card img {
+    height: 80px !important;
+    /* Smaller image */
+    object-fit: contain;
+}
+
+.product-card h5 {
+    font-size: 0.9rem !important;
+    margin: 0.5rem 0 0.25rem 0;
+}
+
+.product-card .price {
+    font-size: 0.9rem !important;
+}
+
+.product-card button {
+    padding: 0.25rem 0.5rem !important;
+    font-size: 0.75rem !important;
+}
+
+/* 2. Round Sidebar Icons */
+/* =========================================
+   UI Refinements (Round Icons & Small Cards)
+   ========================================= */
+
+/* 1. Reduce Product Card Size in POS */
+/* 1. Reduce Product Card Size in POS */
+.product-card {
+    width: 100% !important;
+    /* Allow card to fill grid cell */
+    padding: 0.75rem !important;
+    font-size: 0.9rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+/* Force Grid Density Override */
+.products-grid {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)) !important;
+    gap: 0.75rem !important;
+}
+
+.product-card img {
+    height: 120px !important;
+    object-fit: contain;
+    margin-bottom: 0.5rem;
+}
+
+.product-card h5 {
+    font-size: 0.95rem !important;
+    margin: 0 0 0.5rem 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
     text-align: center;
-    padding: 0.5rem 1rem;
-    background-color: rgba(255, 255, 255, 0.8);
-    backdrop-filter: blur(4px);
-    border-radius: 8px 8px 0 0;
-    box-shadow: 0 -2px 10px rgba(0,0,0,0.05);
+}
+
+.product-card .price {
+    font-size: 1rem !important;
+    font-weight: bold;
+    color: var(--text-primary);
+    margin-bottom: 0.5rem;
+}
+
+.product-card button {
+    width: 100%;
+    padding: 0.4rem 0.5rem !important;
+    font-size: 0.85rem !important;
+}
+
+/* 2. Round Sidebar Icons */
+.nav-item {
+    display: flex !important;
+    align-items: center !important;
+    padding: 0.75rem 1rem !important;
+}
+
+.nav-item::before {
+    content: attr(data-icon) !important;
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    background-color: white !important;
+    /* White Circle */
+    color: var(--primary-color, #4f46e5) !important;
+    /* Blue Icon */
+    border-radius: 50%;
+    margin-right: 12px;
+    font-size: 1.1rem;
+    flex-shrink: 0;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    /* Subtle shadow for white-on-white visibility */
+    transition: all 0.3s ease;
+    border: 2px solid transparent;
+    /* Prepare for border transition */
+}
+
+/* Specific color for active state or hover */
+.nav-item:hover::before,
+.nav-item.active::before {
+    background-color: white !important;
+    color: var(--primary-color, #4f46e5) !important;
+    border-color: var(--primary-color, #4f46e5) !important;
+    /* Blue Ring */
+    box-shadow: 0 2px 6px rgba(79, 70, 229, 0.2);
+    transform: scale(1.05);
+}
+
+/* Fix for Collapsed State */
+/* Fix for Collapsed State */
+.sidebar.collapsed .nav-item::before {
+    margin-right: 0;
+    width: 30px;
+    height: 30px;
+}
+
+/* Remove rectangular background for active item in collapsed state */
+.sidebar.collapsed .nav-item.active {
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+/* Ensure the icon remains visible and styled correctly */
+.sidebar.collapsed .nav-item.active::before {
+    /* Retain the active icon style defined above */
+    background-color: white !important;
+    color: var(--primary-color, #4f46e5) !important;
+    border-color: var(--primary-color, #4f46e5) !important;
+    box-shadow: 0 2px 6px rgba(79, 70, 229, 0.2);
+}
+
+/* 3. Hide Current Bill Section */
+.current-bill-section,
+.pos-bill-panel {
+    display: none !important;
+}
+
+/* Custom Alert Box CSS */
+.custom-alert-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: none;
+    /* Hidden by default */
+    align-items: center;
+    justify-content: center;
     z-index: 9999;
-    pointer-events: none; /* Let clicks pass through if needed */
+    backdrop-filter: blur(4px);
+}
+
+.custom-alert-overlay.active {
+    display: flex;
+}
+
+.custom-alert-box {
+    background-color: white;
+    padding: 2rem;
+    border-radius: 1rem;
+    width: 90%;
+    max-width: 400px;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+    text-align: center;
+    animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.custom-alert-box h3 {
+    margin-top: 0;
+    font-size: 1.5rem;
+    color: var(--text-primary);
+    margin-bottom: 1rem;
+}
+
+.custom-alert-message {
+    color: var(--text-secondary);
+    /* Ensure text is visible */
+    margin-bottom: 1.5rem;
+    white-space: pre-wrap;
+    line-height: 1.5;
+}
+
+.custom-alert-btn {
+    padding: 0.625rem 1.25rem;
+    border-radius: 0.5rem;
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+    font-size: 0.9rem;
+    background: var(--primary-gradient);
+    color: white;
+    min-width: 80px;
+    transition: all 0.2s;
+}
+
+.custom-alert-btn:hover {
+    box-shadow: 0 4px 6px rgba(79, 70, 229, 0.2);
+    transform: translateY(-1px);
+}
+
+.custom-alert-pass-input {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid var(--border-color);
+    border-radius: 0.5rem;
+    margin-bottom: 1.5rem;
+    display: none;
+    font-size: 1rem;
+}
+
+.custom-alert-pass-input:focus {
+    outline: none;
+    border-color: #6366f1;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}

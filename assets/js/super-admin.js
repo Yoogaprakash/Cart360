@@ -93,9 +93,12 @@ function renderView() {
 // ==========================================
 async function renderCompaniesView(container) {
     container.innerHTML = `
-        <div class="section-header">
-            <h2>Company Details</h2>
-            <button id="addCompanyBtn" class="btn btn-primary">Add Company</button>
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+            <h2 class="mb-0">Company Details</h2>
+            <div class="d-flex gap-2 align-items-center">
+                <input type="text" id="compSearch" class="form-control" placeholder="Search Companies..." style="width: auto;">
+                <button id="addCompanyBtn" class="btn btn-success" title="Add Company"><span style="font-size:1.2rem; line-height: 1;">&#43;</span></button>
+            </div>
         </div>
         <div class="table-container">
             <table class="data-table">
@@ -114,6 +117,17 @@ async function renderCompaniesView(container) {
     `;
 
     document.getElementById('addCompanyBtn').addEventListener('click', () => openCompanyModal());
+
+    // Search Logic
+    document.getElementById('compSearch').addEventListener('input', (e) => {
+        const term = e.target.value.toLowerCase();
+        const rows = document.querySelectorAll('#companiesTableBody tr');
+        rows.forEach(row => {
+            const text = row.innerText.toLowerCase();
+            row.style.display = text.includes(term) ? '' : 'none';
+        });
+    });
+
     loadCompanies();
 }
 
@@ -251,9 +265,12 @@ async function softDeleteCompany(id) {
 // ==========================================
 async function renderUsersView(container) {
     container.innerHTML = `
-        <div class="section-header">
-            <h2>User Details</h2>
-            <button id="addUserBtn" class="btn btn-primary">Add User</button>
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+            <h2 class="mb-0">User Details</h2>
+            <div class="d-flex gap-2 align-items-center">
+                <input type="text" id="userSearch" class="form-control" placeholder="Search Users..." style="width: auto;">
+                <button id="addUserBtn" class="btn btn-success" title="Add User"><span style="font-size:1.2rem; line-height: 1;">&#43;</span></button>
+            </div>
         </div>
         <div class="table-container">
             <table class="data-table">
@@ -272,6 +289,17 @@ async function renderUsersView(container) {
         </div>
     `;
     document.getElementById('addUserBtn').addEventListener('click', () => openUserModal());
+
+    // Search Logic
+    document.getElementById('userSearch').addEventListener('input', (e) => {
+        const term = e.target.value.toLowerCase();
+        const rows = document.querySelectorAll('#usersTableBody tr');
+        rows.forEach(row => {
+            const text = row.innerText.toLowerCase();
+            row.style.display = text.includes(term) ? '' : 'none';
+        });
+    });
+
     loadUsers();
 }
 
@@ -425,11 +453,12 @@ async function renderProductsView(container) {
     }
 
     container.innerHTML = `
-        <div class="section-header">
-            <h2>Products</h2>
-            <div style="display:flex; gap:10px;">
-                <select id="filterCompany" class="form-input" style="width:200px;">${companyOptions}</select>
-                <button id="addProductBtn" class="btn btn-primary" disabled>Add Product</button>
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+            <h2 class="mb-0">Products</h2>
+            <div class="d-flex gap-2 align-items-center">
+                <select id="filterCompany" class="form-select" style="width:auto; min-width:150px;">${companyOptions}</select>
+                <input type="text" id="prodSearch" class="form-control" placeholder="Search Products..." style="width: auto;">
+                <button id="addProductBtn" class="btn btn-success" disabled title="Add Product"><span style="font-size:1.2rem; line-height: 1;">&#43;</span></button>
             </div>
         </div>
         <div class="table-container">
@@ -460,6 +489,16 @@ async function renderProductsView(container) {
     });
 
     addBtn.addEventListener('click', () => openProductModal(null, filter.value));
+
+    // Search Logic
+    document.getElementById('prodSearch').addEventListener('input', (e) => {
+        const term = e.target.value.toLowerCase();
+        const rows = document.querySelectorAll('#productsTableBody tr');
+        rows.forEach(row => {
+            const text = row.innerText.toLowerCase();
+            row.style.display = text.includes(term) ? '' : 'none';
+        });
+    });
 }
 
 async function loadProducts(companyId) {
@@ -604,11 +643,12 @@ async function renderCategoriesView(container) {
     }
 
     container.innerHTML = `
-        <div class="section-header">
-            <h2>Categories</h2>
-            <div style="display:flex; gap:10px;">
-                <select id="filterCompanyCat" class="form-input" style="width:200px;">${companyOptions}</select>
-                <button id="addCatBtn" class="btn btn-primary" disabled>Add Category</button>
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+            <h2 class="mb-0">Categories</h2>
+            <div class="d-flex gap-2 align-items-center">
+                <select id="filterCompanyCat" class="form-select" style="width:auto; min-width:150px;">${companyOptions}</select>
+                <input type="text" id="catSearch" class="form-control" placeholder="Search Categories..." style="width: auto;">
+                <button id="addCatBtn" class="btn btn-success" disabled title="Add Category"><span style="font-size:1.2rem; line-height: 1;">&#43;</span></button>
             </div>
         </div>
         <div class="table-container">
@@ -636,6 +676,16 @@ async function renderCategoriesView(container) {
     });
 
     addBtn.addEventListener('click', () => openCategoryModal(null, filter.value));
+
+    // Search Logic
+    document.getElementById('catSearch').addEventListener('input', (e) => {
+        const term = e.target.value.toLowerCase();
+        const rows = document.querySelectorAll('#catsTableBody tr');
+        rows.forEach(row => {
+            const text = row.innerText.toLowerCase();
+            row.style.display = text.includes(term) ? '' : 'none';
+        });
+    });
 }
 
 async function loadCategories(companyId) {

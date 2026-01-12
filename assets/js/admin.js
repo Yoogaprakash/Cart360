@@ -44,10 +44,10 @@ function renderPaginationControls(key, containerId) {
     if (!container) return;
 
     let html = `
-        <div class="pagination-controls" style="display:flex; justify-content:space-between; align-items:center; margin-top:10px;">
-            <div style="display:flex; align-items:center; gap:10px;">
-                <label>Show</label>
-                <select id="limit-${key}" class="form-input" style="width:70px; padding:2px;">
+        <div class="d-flex justify-content-between align-items-center mt-3 flex-nowrap">
+            <div class="d-flex align-items-center gap-2">
+                <label class="text-secondary small d-none d-sm-inline">Show</label>
+                <select id="limit-${key}" class="form-select form-select-sm" style="width: auto;">
                     <option value="5" ${state.limit == 5 ? 'selected' : ''}>5</option>
                     <option value="10" ${state.limit == 10 ? 'selected' : ''}>10</option>
                     <option value="50" ${state.limit == 50 ? 'selected' : ''}>50</option>
@@ -55,12 +55,15 @@ function renderPaginationControls(key, containerId) {
                     <option value="500" ${state.limit == 500 ? 'selected' : ''}>500</option>
                     <option value="1000" ${state.limit == 1000 ? 'selected' : ''}>1000</option>
                 </select>
-                <span>entries</span>
+                <span class="text-secondary small d-none d-sm-inline">entries</span>
             </div>
-            <div style="display:flex; align-items:center; gap:5px;">
-                <span>Page ${state.page} of ${totalPages || 1} (${total} items)</span>
-                <button class="btn btn-sm ${state.page <= 1 ? 'disabled' : ''}" id="prev-${key}" ${state.page <= 1 ? 'disabled' : ''}>Prev</button>
-                <button class="btn btn-sm ${state.page >= totalPages ? 'disabled' : ''}" id="next-${key}" ${state.page >= totalPages ? 'disabled' : ''}>Next</button>
+            <div class="d-flex align-items-center gap-2">
+                <span class="text-secondary small me-1 d-none d-sm-inline">Page ${state.page} of ${totalPages || 1} (${total} items)</span>
+                <span class="text-secondary small me-1 d-inline d-sm-none">${state.page}/${totalPages || 1}</span>
+                <div class="btn-group">
+                    <button class="btn btn-outline-secondary btn-sm ${state.page <= 1 ? 'disabled' : ''}" id="prev-${key}" ${state.page <= 1 ? 'disabled' : ''}>Prev</button>
+                    <button class="btn btn-outline-secondary btn-sm ${state.page >= totalPages ? 'disabled' : ''}" id="next-${key}" ${state.page >= totalPages ? 'disabled' : ''}>Next</button>
+                </div>
             </div>
         </div>
     `;
@@ -182,8 +185,8 @@ export async function initAdmin() {
             </main>
 
             <!-- Shared Modal Container -->
-            <div id="sharedModal" class="modal hidden">
-                <div class="modal-content" id="modalContent"></div>
+            <div id="sharedModal" class="custom-modal hidden">
+                <div class="custom-modal-content" id="modalContent"></div>
             </div>
             
              <!-- Custom Alert Modal -->
@@ -288,33 +291,72 @@ async function renderCompanyView(container) {
             document.getElementById('sidebarLogo').src = data.LOGO_URL || 'https://via.placeholder.com/40';
 
             container.innerHTML = `
-                <div class="section-header">
-                    <h2>Company Details</h2>
-                    <div>
-                        <button id="editCompanyBtn" class="btn btn-primary">Edit Details</button>
-                        <button id="inactiveAllSalesBtn" class="btn" style="background:#ef4444; color:white; margin-left: 10px;">Delete All Bills</button>
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+                    <h2 class="mb-0">Company Details</h2>
+                    <div class="d-flex gap-2 align-items-center">
+                        <button id="editCompanyBtn" class="btn btn-primary" title="Edit Details"><span style="font-size:1rem; font-weight: 500;">Edit Details</span></button>
+                        <button id="inactiveAllSalesBtn" class="btn btn-danger" title="Delete All Bills"><span style="font-size:1rem; font-weight: 500;">Delete All Bills</span></button>
                     </div>
                 </div>
-                <div class="card">
-                    <div class="company-layout">
-                        <div class="company-logo-section">
-                            <img src="${logoUrl}" alt="Company Logo" style="width:100px; height:100px; object-fit:cover; border-radius:12px; border:1px solid #e2e8f0;">
-                            <p style="margin-top:0.5rem; color:#6b7280; font-size:0.8rem;">Logo</p>
-                        </div>
-                        <div class="form-grid" style="flex:1;">
-                            <div class="form-group"><label class="form-label">Company Name</label><div class="form-input">${data.COMPANY_NAME}</div></div>
-                            <div class="form-group"><label class="form-label">Email</label><div class="form-input">${data.EMAIL}</div></div>
-                            <div class="form-group"><label class="form-label">Phone</label><div class="form-input">${data.PHONE_NO || '-'}</div></div>
-                            <div class="form-group"><label class="form-label">GST No</label><div class="form-input">${data.GST_NO || '-'}</div></div>
-                            <div class="form-group"><label class="form-label">UPI ID</label><div class="form-input">${data.UPI_ID || '-'}</div></div>
-                            <div class="form-group"><label class="form-label">GST Flag</label><div class="form-input">${data.GST_FLAG == 1 ? 'Enabled' : 'Disabled'}</div></div>
-                            <div class="form-group"><label class="form-label">Address</label><div class="form-input">${data.ADDRESS || '-'}</div></div>
-                            <div class="form-group"><label class="form-label">Status</label><div class="form-input">${data.STATUS_SYS_ID == 1 ? 'Active' : 'Inactive'}</div></div>
-                            <div class="form-group full-width"><label class="form-label">Notes</label><div class="form-input">${data.NOTES || '-'}</div></div>
+                <div class="card shadow-sm border-0">
+                    <div class="card-body">
+                        <div class="row g-4">
+                            <div class="col-md-3 text-center">
+                                <img src="${logoUrl}" alt="Company Logo" class="img-thumbnail custom-logo-size mb-2">
+                                <p class="text-muted small">Logo</p>
+                            </div>
+                            <div class="col-md-9">
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label text-secondary small text-uppercase fw-bold d-block">Company Name</label>
+                                        <div class="fw-bold fs-5">${data.COMPANY_NAME}</div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label text-secondary small text-uppercase fw-bold d-block">Email</label>
+                                        <div>${data.EMAIL}</div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label text-secondary small text-uppercase fw-bold d-block">Phone</label>
+                                        <div>${data.PHONE_NO || '-'}</div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label text-secondary small text-uppercase fw-bold d-block">GST No</label>
+                                        <div>${data.GST_NO || '-'}</div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label text-secondary small text-uppercase fw-bold d-block">UPI ID</label>
+                                        <div>${data.UPI_ID || '-'}</div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label text-secondary small text-uppercase fw-bold d-block">Address</label>
+                                        <div>${data.ADDRESS || '-'}</div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label text-secondary small text-uppercase fw-bold d-block">GST Flag</label>
+                                        <div><span class="status-badge ${data.GST_FLAG == 1 ? 'status-active' : 'status-inactive'} d-inline-block">${data.GST_FLAG == 1 ? 'Enabled' : 'Disabled'}</span></div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label text-secondary small text-uppercase fw-bold d-block">Status</label>
+                                        <div><span class="status-badge ${data.STATUS_SYS_ID == 1 ? 'status-active' : 'status-inactive'} d-inline-block">${data.STATUS_SYS_ID == 1 ? 'Active' : 'Inactive'}</span></div>
+                                    </div>
+                                    <div class="col-12">
+                                        <label class="form-label text-secondary small text-uppercase fw-bold d-block">Notes</label>
+                                        <div class="text-wrap bg-light p-2 rounded">${data.NOTES || '-'}</div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
             `;
+            // Add custom style for logo size if not present or handle via utility
+            const styleCheck = document.getElementById('custom-styles-js');
+            if (!styleCheck) {
+                const style = document.createElement('style');
+                style.id = 'custom-styles-js';
+                style.innerHTML = '.custom-logo-size { width: 100px; height: 100px; object-fit: cover; }';
+                document.head.appendChild(style);
+            }
             document.getElementById('editCompanyBtn').addEventListener('click', () => openCompanyModal());
             document.getElementById('inactiveAllSalesBtn').addEventListener('click', async () => {
                 const pw = await showCustomAlert("Enter Admin Password to confirm:", "Admin Access", "password");
@@ -346,60 +388,60 @@ async function openCompanyModal() {
     const data = snapshot.exists() ? snapshot.val() : {};
 
     content.innerHTML = `
-        <h2 id="compModalTitle">Edit Company Details</h2>
+        <h2 class="h4 mb-4" id="compModalTitle">Edit Company Details</h2>
         <form id="companyForm">
-            <div class="form-grid">
-                <div class="form-group full-width">
+            <div class="row g-3">
+                <div class="col-12">
                     <label class="form-label">Company Logo</label>
-                    <input type="file" id="compLogo" class="form-input" accept="image/*">
+                    <input type="file" id="compLogo" class="form-control" accept="image/*">
                     <input type="hidden" id="compLogoUrl" value="${data.LOGO_URL || ''}">
                 </div>
-                <div class="form-group">
+                <div class="col-md-6">
                     <label class="form-label">Company Name</label>
-                    <input type="text" id="compName" class="form-input" value="${data.COMPANY_NAME || ''}" required>
+                    <input type="text" id="compName" class="form-control" value="${data.COMPANY_NAME || ''}" required>
                 </div>
-                <div class="form-group">
+                <div class="col-md-6">
                     <label class="form-label">Email</label>
-                    <input type="email" id="compEmail" class="form-input" value="${data.EMAIL || ''}" readonly>
+                    <input type="email" id="compEmail" class="form-control" value="${data.EMAIL || ''}" readonly>
                 </div>
-                <div class="form-group">
+                <div class="col-md-6">
                     <label class="form-label">Phone</label>
-                    <input type="tel" id="compPhone" class="form-input" value="${data.PHONE_NO || ''}">
+                    <input type="tel" id="compPhone" class="form-control" value="${data.PHONE_NO || ''}">
                 </div>
-                <div class="form-group">
+                <div class="col-md-6">
                     <label class="form-label">GST No</label>
-                    <input type="text" id="compGst" class="form-input" value="${data.GST_NO || ''}">
+                    <input type="text" id="compGst" class="form-control" value="${data.GST_NO || ''}">
                 </div>
-                <div class="form-group">
+                <div class="col-md-6">
                     <label class="form-label">UPI ID</label>
-                    <input type="text" id="compUpi" class="form-input" value="${data.UPI_ID || ''}">
+                    <input type="text" id="compUpi" class="form-control" value="${data.UPI_ID || ''}">
                 </div>
-                <div class="form-group">
+                <div class="col-md-6">
                     <label class="form-label">GST Flag</label>
-                    <select id="compGstFlag" class="form-input">
+                    <select id="compGstFlag" class="form-select">
                         <option value="1" ${data.GST_FLAG == 1 ? 'selected' : ''}>Enabled</option>
                         <option value="0" ${data.GST_FLAG == 0 ? 'selected' : ''}>Disabled</option>
                     </select>
                 </div>
-                <div class="form-group full-width">
+                <div class="col-12">
                     <label class="form-label">Address</label>
-                    <textarea id="compAddress" class="form-input">${data.ADDRESS || ''}</textarea>
+                    <textarea id="compAddress" class="form-control" rows="2">${data.ADDRESS || ''}</textarea>
                 </div>
-                <div class="form-group full-width">
+                <div class="col-12">
                     <label class="form-label">Bill Notes (Footer)</label>
-                    <textarea id="compBillNotes" class="form-input">${data.BILL_NOTES || ''}</textarea>
+                    <textarea id="compBillNotes" class="form-control" rows="2">${data.BILL_NOTES || ''}</textarea>
                 </div>
-                <div class="form-group">
+                <div class="col-md-6">
                     <label class="form-label">Bill Series Start No</label>
-                    <input type="number" id="compBillSeries" class="form-input" value="${data.BILL_SERIES_START || '1'}">
+                    <input type="number" id="compBillSeries" class="form-control" value="${data.BILL_SERIES_START || '1'}">
                 </div>
-                <div class="form-group full-width">
+                <div class="col-12">
                     <label class="form-label">Internal Notes</label>
-                    <textarea id="compNotes" class="form-input">${data.NOTES || ''}</textarea>
+                    <textarea id="compNotes" class="form-control" rows="2">${data.NOTES || ''}</textarea>
                 </div>
             </div>
-            <div class="modal-actions">
-                <button type="button" id="compCancelBtn" class="btn">Cancel</button>
+            <div class="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
+                <button type="button" id="compCancelBtn" class="btn btn-secondary">Cancel</button>
                 <button type="submit" class="btn btn-primary">Save</button>
             </div>
         </form>
@@ -478,27 +520,31 @@ async function handleCompanySubmit(e) {
 async function renderBillsView(container) {
     viewState.bills.search = ''; // Reset search
     container.innerHTML = `
-        <div class="section-header">
-            <h2>Bills History</h2>
-            <div style="display: flex; gap: 10px;">
-                <input type="text" id="billSearch" class="form-input" placeholder="Search by Bill No, Name, Phone..." style="width: 300px;">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2 class="h3 mb-0">Bills History</h2>
+            <div class="d-flex gap-2">
+                <input type="text" id="billSearch" class="form-control" placeholder="Search by Bill No, Name, Phone..." style="max-width: 300px;">
             </div>
         </div>
-        <div class="table-container">
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>Date</th>
-                        <th>Bill No</th>
-                        <th>Customer</th>
-                        <th>Mobile</th>
-                        <th>Amount</th>
-                        <th>Items</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody id="billsTableBody"><tr><td colspan="7">Loading...</td></tr></tbody>
-            </table>
+        <div class="card shadow-sm border-0">
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="bg-light">
+                            <tr>
+                                <th class="border-0 px-4 py-3 text-secondary text-uppercase small fw-bold">Date</th>
+                                <th class="border-0 px-4 py-3 text-secondary text-uppercase small fw-bold">Bill No</th>
+                                <th class="border-0 px-4 py-3 text-secondary text-uppercase small fw-bold">Customer</th>
+                                <th class="border-0 px-4 py-3 text-secondary text-uppercase small fw-bold">Mobile</th>
+                                <th class="border-0 px-4 py-3 text-secondary text-uppercase small fw-bold">Amount</th>
+                                <th class="border-0 px-4 py-3 text-secondary text-uppercase small fw-bold">Items</th>
+                                <th class="border-0 px-4 py-3 text-secondary text-uppercase small fw-bold">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="billsTableBody"><tr><td colspan="7" class="text-center py-4">Loading...</td></tr></tbody>
+                    </table>
+                </div>
+            </div>
         </div>
         <div id="billsPagination"></div>
     `;
@@ -815,15 +861,13 @@ function renderCategoriesView(container) {
     }
     viewState.categories.search = '';
     container.innerHTML = `
-        <div class="section-header">
-            <h2>Categories</h2>
-            <div style="display:flex; gap: 10px;">
-                <button id="addCategoryBtn" class="btn btn-primary" title="Add Category"><span style="font-size:1.1rem; vertical-align:middle;">&#43;</span></button>
-                <button id="inactiveSelCatBtn" class="btn" style="background:#ef4444; color:white;" title="Delete Selected"><span style="font-size:1.1rem; vertical-align:middle;">&#10005;</span></button>
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+            <h2 class="mb-0">Categories</h2>
+            <div class="d-flex gap-2 align-items-center">
+                <input type="text" id="catSearch" class="form-control" placeholder="Search Categories..." style="width: auto; position: relative; top: auto;">
+                <button id="addCategoryBtn" class="btn btn-success" title="Add Category"><span style="font-size:1.2rem; line-height: 1;">&#43;</span></button>
+                <button id="inactiveSelCatBtn" class="btn btn-danger" title="Delete Selected"><span style="font-size:1.2rem; line-height: 1;">&#128465;</span></button>
             </div>
-        </div>
-        <div style="margin-bottom: 1rem;">
-            <input type="text" id="catSearch" class="form-input" placeholder="Search Categories..." style="width: 100%; max-width: 300px;">
         </div>
         <div class="table-container">
             <table class="data-table">
@@ -876,15 +920,13 @@ function renderProductsView(container) {
     }
     viewState.products.search = '';
     container.innerHTML = `
-        <div class="section-header">
-            <h2>Products</h2>
-             <div style="display:flex; gap: 10px;">
-                <button id="addProductBtn" class="btn btn-primary" title="Add Product"><span style="font-size:1.1rem; vertical-align:middle;">&#43;</span></button>
-                 <button id="inactiveSelProdBtn" class="btn" style="background:#ef4444; color:white;" title="Delete Selected"><span style="font-size:1.1rem; vertical-align:middle;">&#10005;</span></button>
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+            <h2 class="mb-0">Products</h2>
+            <div class="d-flex gap-2 align-items-center">
+                <input type="text" id="prodSearch" class="form-control" placeholder="Search Products..." style="width: auto; position: relative; top: auto;">
+                <button id="addProductBtn" class="btn btn-success" title="Add Product"><span style="font-size:1.2rem; line-height: 1;">&#43;</span></button>
+                <button id="inactiveSelProdBtn" class="btn btn-danger" title="Delete Selected"><span style="font-size:1.2rem; line-height: 1;">&#128465;</span></button>
             </div>
-        </div>
-        <div style="margin-bottom: 1rem;">
-            <input type="text" id="prodSearch" class="form-input" placeholder="Search Products..." style="width: 100%; max-width: 300px;">
         </div>
         <div class="table-container">
             <table class="data-table">
@@ -1271,7 +1313,7 @@ async function renderPosView(container) {
                 </div>
             </div>
             
-            <div class="cart-panel" id="posCartPanel">
+            <div class="cart-panel" id="posCartPanel" style="display:none;">
                 <button class="toggle-cart-btn" id="toggleCartBtn" title="Toggle Cart">⇥</button>
                 <h2 style="margin-top:0;">Current Bill</h2>
                 <div class="customer-details">

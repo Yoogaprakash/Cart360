@@ -45,7 +45,7 @@ function handleRoute() {
         }
 
         // Dynamic import
-        import('./super-admin.js').then(module => {
+        import('./super-admin.js?v=1.3').then(module => {
             module.initSuperAdmin();
         });
         return;
@@ -54,7 +54,7 @@ function handleRoute() {
     // Admin Route
     if (path === '/admin') {
         if (!currentUser) { navigateTo('/'); return; }
-        import('./admin.js').then(module => module.initAdmin());
+        import('./admin.js?v=1.3').then(module => module.initAdmin());
         return;
     }
 
