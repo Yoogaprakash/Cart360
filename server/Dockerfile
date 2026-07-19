@@ -15,6 +15,15 @@ RUN dotnet publish src/Cart360.API/Cart360.API.csproj -c Release -o /app --no-re
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
+
+# The slim aspnet base image doesn't ship libgssapi_krb5, which Npgsql tries to load for
+# GSSAPI/Kerberos auth negotiation even when it isn't actually used (plain password auth,
+# as here) — without it the very first DB connection attempt crashes the process before
+# Kestrel binds a port.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libgssapi-krb5-2 \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY --from=build /app .
 
 # Render sets $PORT at runtime; Kestrel must bind to it (not the launchSettings ports,
