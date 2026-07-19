@@ -134,6 +134,41 @@ app.UseRateLimiter();
 app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestampUtc = DateTimeOffset.UtcNow }))
     .AllowAnonymous();
 
+// One-time bootstrap endpoint for environments without Shell/one-off-job access (e.g. Render's
+// free tier). Inert unless the SeedSuperAdminToken config value is set; fails closed (404, not
+// 401/403, so its existence isn't revealed) on any mismatch. Token is read from a header, not a
+// query string, so it doesn't end up in access logs. Remove once you've bootstrapped your
+// Super Admin login, or at least rotate/unset the token — see docs/deployment.md.
+app.MapPost("/internal/seed-superadmin", async (
+    HttpRequest request,
+    Cart360DbContext db,
+    IPasswordHasher hasher,
+    IConfiguration configuration) =>
+{
+    var expectedToken = configuration["SeedSuperAdminToken"];
+    var providedToken = request.Headers["X-Seed-Token"].ToString();
+    if (string.IsNullOrEmpty(expectedToken) || providedToken != expectedToken)
+        return Results.NotFound();
+
+    var email = request.Query["email"].ToString();
+    if (string.IsNullOrWhiteSpace(email)) email = "superadmin@cart360.app";
+
+    var user = await db.Users.IgnoreQueryFilters()
+        .FirstOrDefaultAsync(u => u.TenantId == null && u.Email == email && u.Role == UserRole.SuperAdmin);
+    if (user is null)
+        return Results.NotFound($"No Super Admin user found with email '{email}'.");
+
+    var newPassword = Convert.ToBase64String(RandomNumberGenerator.GetBytes(18))
+        .Replace("+", "A").Replace("/", "B").Replace("=", "");
+
+    user.PasswordHash = hasher.Hash(newPassword);
+    user.IsEmailVerified = true;
+    user.IsActive = true;
+    await db.SaveChangesAsync();
+
+    return Results.Ok(new { email, password = newPassword });
+}).AllowAnonymous();
+
 app.MapControllers();
 
 app.Run();
