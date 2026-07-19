@@ -1,0 +1,29 @@
+# .NET
+server/**/bin/
+server/**/obj/
+*.user
+
+# Node / Vite
+client/node_modules/
+client/dist/
+client/.vite/
+
+# Env / secrets
+# client/.env.development and client/.env.production hold no secrets (just the API
+# base URL) and are committed on purpose, per Vite's own convention — only local
+# machine-specific overrides are ignored.
+.env.local
+.env.*.local
+
+# appsettings.Development.json is committed on purpose too — it only ever holds a
+# local-only Postgres password and a key explicitly named "dev-only-signing-key-
+# never-use-in-production". Real secrets are Render env vars, never a committed file.
+appsettings.Production.json
+appsettings.*.local.json
+
+# OS / IDE
+.vs/
+.vscode/
+.idea/
+.claude/
+*.DS_Store

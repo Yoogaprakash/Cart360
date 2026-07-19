@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Cart360</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script>
+      // Second half of the 404.html redirect trick — restore the real path GitHub
+      // Pages couldn't serve directly, before React Router reads the URL.
+      (function () {
+        var params = new URLSearchParams(location.search);
+        var redirect = params.get("redirect");
+        if (redirect) {
+          params.delete("redirect");
+          var rest = params.toString();
+          history.replaceState(null, "", location.pathname + (rest ? "?" + rest : "") + redirect);
+        }
+      })();
+    </script>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

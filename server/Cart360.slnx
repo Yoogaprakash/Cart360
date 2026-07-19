@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Cart360.API/Cart360.API.csproj" />
+    <Project Path="src/Cart360.Application/Cart360.Application.csproj" />
+    <Project Path="src/Cart360.Domain/Cart360.Domain.csproj" />
+    <Project Path="src/Cart360.Infrastructure/Cart360.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Cart360.IntegrationTests/Cart360.IntegrationTests.csproj" />
+    <Project Path="tests/Cart360.UnitTests/Cart360.UnitTests.csproj" />
+  </Folder>
+</Solution>

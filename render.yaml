@@ -1,0 +1,48 @@
+# Render Blueprint — https://render.com/docs/blueprint-spec
+# Deploy: connect this repo in the Render dashboard ("New +" -> "Blueprint"), point it at
+# this file, then fill in the `sync: false` env vars (secrets) when prompted.
+services:
+  - type: web
+    name: cart360-api
+    runtime: docker
+    dockerfilePath: ./server/Dockerfile
+    dockerContext: ./server
+    plan: free
+    region: oregon
+    healthCheckPath: /health
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      # Supabase connection string (transaction pooler, port 6543) — see docs/deployment.md.
+      - key: ConnectionStrings__DefaultConnection
+        sync: false
+      - key: Jwt__Key
+        generateValue: true
+      - key: Jwt__Issuer
+        value: Cart360
+      - key: Jwt__Audience
+        value: Cart360Client
+      - key: Jwt__AccessTokenMinutes
+        value: "15"
+      - key: Jwt__RefreshTokenDays
+        value: "7"
+      - key: Jwt__RefreshTokenDaysRememberMe
+        value: "30"
+      # SMTP — any transactional email provider (SendGrid, Mailgun, Postmark, etc.).
+      - key: Smtp__Host
+        sync: false
+      - key: Smtp__Port
+        value: "587"
+      - key: Smtp__UseSsl
+        value: "true"
+      - key: Smtp__Username
+        sync: false
+      - key: Smtp__Password
+        sync: false
+      - key: Smtp__FromEmail
+        sync: false
+      - key: Smtp__FromName
+        value: Cart360
+      # The GitHub Pages origin the SPA is served from — must match exactly, no trailing slash.
+      - key: Cors__AllowedOrigins__0
+        sync: false

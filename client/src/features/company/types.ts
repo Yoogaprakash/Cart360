@@ -1,0 +1,68 @@
+export interface CompanyDetail {
+  id: string;
+  name: string;
+  slug: string;
+  status: string;
+  gstNumber?: string | null;
+  panNumber?: string | null;
+  addressLine1?: string | null;
+  addressLine2?: string | null;
+  city?: string | null;
+  state?: string | null;
+  postalCode?: string | null;
+  country: string;
+  phone?: string | null;
+  email: string;
+  logoUrl?: string | null;
+  signatureUrl?: string | null;
+  termsAndConditions?: string | null;
+  bankName?: string | null;
+  bankAccountNumber?: string | null;
+  bankIfsc?: string | null;
+  bankBranch?: string | null;
+  upiId?: string | null;
+  upiQrUrl?: string | null;
+  isGstEnabled: boolean;
+  invoicePrefix: string;
+  quotationPrefix: string;
+  purchasePrefix: string;
+  themeColor: string;
+  currency: string;
+  language: string;
+  timezone: string;
+  planName?: string | null;
+  planCode?: string | null;
+  subscriptionEndDate?: string | null;
+  createdAt: string;
+}
+
+export interface UpdateCompanySettingsRequest {
+  name: string;
+  gstNumber?: string | null;
+  panNumber?: string | null;
+  addressLine1?: string | null;
+  addressLine2?: string | null;
+  city?: string | null;
+  state?: string | null;
+  postalCode?: string | null;
+  country?: string | null;
+  phone?: string | null;
+  email: string;
+  logoUrl?: string | null;
+  signatureUrl?: string | null;
+  termsAndConditions?: string | null;
+  bankName?: string | null;
+  bankAccountNumber?: string | null;
+  bankIfsc?: string | null;
+  bankBranch?: string | null;
+  upiId?: string | null;
+  upiQrUrl?: string | null;
+  isGstEnabled: boolean;
+  invoicePrefix: string;
+  quotationPrefix: string;
+  purchasePrefix: string;
+  themeColor: string;
+  currency: string;
+  language: string;
+  timezone: string;
+}

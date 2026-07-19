@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Cart360</title>
+    <script>
+      // GitHub Pages has no server-side rewrites, so a hard refresh or deep link on a
+      // client-side route (e.g. /cart360/app/invoices/123) 404s. This is the standard
+      // spa-github-pages redirect trick: encode the intended path into a query string,
+      // redirect to index.html, and index.html's inline script below restores it via
+      // history.replaceState before React Router ever sees the URL.
+      // GitHub project pages always serve under /<repo-name>/ — take the first path
+      // segment as the base so this works regardless of what the repo is named.
+      var segments = location.pathname.split("/");
+      var basePath = "/" + (segments[1] || "") + "/";
+      var path = location.pathname.slice(basePath.length);
+      location.replace(basePath + "?redirect=" + encodeURIComponent(path + location.search + location.hash));
+    </script>
+  </head>
+  <body></body>
+</html>
