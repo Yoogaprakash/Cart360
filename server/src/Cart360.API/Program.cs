@@ -74,7 +74,14 @@ builder.Services.AddRateLimiter(options =>
     });
 });
 
-var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
+// Trimmed defensively: env vars pasted into a dashboard's textarea-style input can pick up a
+// trailing space/newline invisibly, and CORS origin matching is an exact string comparison —
+// one stray whitespace character silently makes every origin fail to match, with no error
+// beyond "No 'Access-Control-Allow-Origin' header is present" in the browser console.
+var allowedOrigins = (builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [])
+    .Select(o => o.Trim())
+    .Where(o => o.Length > 0)
+    .ToArray();
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("Frontend", policy =>
