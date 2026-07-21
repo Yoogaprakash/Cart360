@@ -83,9 +83,15 @@ public class UserManagementService : IUserManagementService
 
         _db.UserPermissions.RemoveRange(user.Permissions);
 
+        // Added via the DbSet directly (not user.Permissions.Add(...)) so EF Core marks these
+        // Added unconditionally. BaseEntity.Id is pre-populated by a C# property initializer
+        // (Guid.NewGuid()), so when a new entity is instead discovered only through navigation
+        // fixup on an already-tracked parent, EF Core falls back to guessing state from the key
+        // value — sees a non-empty Guid and assumes it's an existing row, generating an UPDATE
+        // that matches zero rows instead of the intended INSERT.
         foreach (var p in request.Permissions)
         {
-            user.Permissions.Add(new UserPermission
+            _db.UserPermissions.Add(new UserPermission
             {
                 UserId = user.Id,
                 Module = p.Module,
