@@ -4,6 +4,7 @@ server/**/obj/
 *.user
 
 # Node / Vite
+node_modules/
 client/node_modules/
 client/dist/
 client/.vite/
