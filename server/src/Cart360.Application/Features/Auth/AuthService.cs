@@ -108,9 +108,13 @@ public class AuthService : IAuthService
 
     public async Task<LoginResponse> LoginAsync(LoginRequest request, string ipAddress, CancellationToken cancellationToken = default)
     {
-        var user = await _userRepository.GetByEmailAnyTenantAsync(request.Email, cancellationToken);
+        // The same email can belong to a different account per tenant (e.g. someone is
+        // CompanyAdmin at more than one company, each with its own password) — check every
+        // candidate's password rather than an arbitrary "first" match for that email.
+        var candidates = await _userRepository.GetAllByEmailAnyTenantAsync(request.Email, cancellationToken);
+        var user = candidates.FirstOrDefault(u => u.IsActive && _passwordHasher.Verify(request.Password, u.PasswordHash));
 
-        if (user is null || !user.IsActive || !_passwordHasher.Verify(request.Password, user.PasswordHash))
+        if (user is null)
             throw new AuthenticationFailedException("Invalid email or password.");
 
         if (user.Role != UserRole.SuperAdmin)

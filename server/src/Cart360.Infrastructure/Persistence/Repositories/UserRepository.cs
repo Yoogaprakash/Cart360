@@ -18,6 +18,11 @@ public class UserRepository : IUserRepository
             .Where(u => !u.IsDeleted)
             .FirstOrDefaultAsync(u => u.Email == email, cancellationToken);
 
+    public async Task<IReadOnlyList<User>> GetAllByEmailAnyTenantAsync(string email, CancellationToken cancellationToken = default) =>
+        await _db.Users.IgnoreQueryFilters().Include(u => u.Permissions)
+            .Where(u => !u.IsDeleted && u.Email == email)
+            .ToListAsync(cancellationToken);
+
     public Task<User?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
         _db.Users.IgnoreQueryFilters().Include(u => u.Permissions)
             .Where(u => !u.IsDeleted)

@@ -11,6 +11,13 @@ public interface IUserRepository
     /// </summary>
     Task<User?> GetByEmailAnyTenantAsync(string email, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Same email can legitimately belong to a different user per tenant (a person can be
+    /// CompanyAdmin at more than one company with a different password each) — login must
+    /// check every candidate's password rather than picking an arbitrary one.
+    /// </summary>
+    Task<IReadOnlyList<User>> GetAllByEmailAnyTenantAsync(string email, CancellationToken cancellationToken = default);
+
     Task<User?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
 
     Task<bool> EmailExistsAsync(Guid? tenantId, string email, CancellationToken cancellationToken = default);
